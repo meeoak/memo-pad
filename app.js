@@ -1,11 +1,14 @@
-const STORAGE_KEY = "paper-diary-v1";
+const STORAGE_KEY = "planner-v2";
 const DAY_NAMES = ["SUN", "MON", "TUE", "WED", "THU", "FRI", "SAT"];
 const DAY_NAMES_KO = ["일", "월", "화", "수", "목", "금", "토"];
 const MONTH_ABBR = ["JAN", "FEB", "MAR", "APR", "MAY", "JUN", "JUL", "AUG", "SEP", "OCT", "NOV", "DEC"];
+const DOW_MINI = ["M", "T", "W", "T", "F", "S", "S"];
+const WORK_ROWS = 7;
+const LIFE_ROWS = 6;
+const TRACKER_ROWS = 4;
 
 let state = {
   currentDate: startOfDay(new Date()),
-  calMonth: startOfMonth(new Date()),
   view: "daily",
   data: loadData(),
 };
@@ -15,22 +18,29 @@ const els = {
   btnNext: document.getElementById("btnNext"),
   btnToday: document.getElementById("btnToday"),
   currentLabel: document.getElementById("currentLabel"),
+  dailyView: document.getElementById("dailyView"),
+  weeklyView: document.getElementById("weeklyView"),
+  monthlyView: document.getElementById("monthlyView"),
   dayName: document.getElementById("dayName"),
   dayNum: document.getElementById("dayNum"),
   dayHeader: document.getElementById("dayHeader"),
-  planList: document.getElementById("planList"),
-  timeColumn: document.getElementById("timeColumn"),
-  doGrid: document.getElementById("doGrid"),
-  seeText: document.getElementById("seeText"),
-  dailyView: document.getElementById("dailyView"),
-  weeklyView: document.getElementById("weeklyView"),
-  weeklyRange: document.getElementById("weeklyRange"),
-  weeklyNotes: document.getElementById("weeklyNotes"),
-  weeklyGrid: document.getElementById("weeklyGrid"),
-  calTitle: document.getElementById("calTitle"),
-  calDays: document.getElementById("calDays"),
-  calPrev: document.getElementById("calPrev"),
-  calNext: document.getElementById("calNext"),
+  hourRows: document.getElementById("hourRows"),
+  seeMissed: document.getElementById("seeMissed"),
+  seeGrateful: document.getElementById("seeGrateful"),
+  seeSummary: document.getElementById("seeSummary"),
+  workList: document.getElementById("workList"),
+  lifeList: document.getElementById("lifeList"),
+  sidebarCal: document.getElementById("sidebarCal"),
+  weeklyColumns: document.getElementById("weeklyColumns"),
+  brandYear: document.getElementById("brandYear"),
+  brandNum: document.getElementById("brandNum"),
+  brandAbbr: document.getElementById("brandAbbr"),
+  monthlyLeft: document.getElementById("monthlyLeft"),
+  monthlyRight: document.getElementById("monthlyRight"),
+  prevMiniMonth: document.getElementById("prevMiniMonth"),
+  nextMiniMonth: document.getElementById("nextMiniMonth"),
+  trackerLeft: document.getElementById("trackerLeft"),
+  trackerRight: document.getElementById("trackerRight"),
 };
 
 function startOfDay(date) {
@@ -44,10 +54,11 @@ function startOfMonth(date) {
 }
 
 function dateKey(date) {
-  const y = date.getFullYear();
-  const m = String(date.getMonth() + 1).padStart(2, "0");
-  const d = String(date.getDate()).padStart(2, "0");
-  return `${y}-${m}-${d}`;
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
+}
+
+function monthKey(date) {
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`;
 }
 
 function weekKey(date) {
@@ -62,10 +73,55 @@ function parseDate(key) {
 function loadData() {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
-    return raw ? JSON.parse(raw) : { weeks: {} };
+    if (raw) return JSON.parse(raw);
+    return migrateFromV1() || emptyStore();
   } catch {
-    return { weeks: {} };
+    return emptyStore();
   }
+}
+
+function migrateFromV1() {
+  try {
+    const old = localStorage.getItem("paper-diary-v1");
+    if (!old) return null;
+    const parsed = JSON.parse(old);
+    const store = emptyStore();
+    for (const [key, val] of Object.entries(parsed)) {
+      if (key === "weeks") {
+        for (const [wk, note] of Object.entries(val)) {
+          if (typeof note === "string") store.weeks[wk] = { work: emptyWork(), life: emptyLife(), note };
+        }
+      } else if (val && val.plan) {
+        store.days[key] = {
+          plan: val.plan.map((p) => ({ text: p.text || "", done: !!p.done, highlight: false })),
+          do: migrateDo(val.do),
+          see: {
+            missed: "",
+            grateful: "",
+            summary: typeof val.see === "string" ? val.see : "",
+          },
+        };
+      }
+    }
+    return store;
+  } catch {
+    return null;
+  }
+}
+
+function migrateDo(oldDo) {
+  const slots = getHourSlots();
+  const result = {};
+  for (const s of slots) {
+    const cells = oldDo?.[s.key] || ["", "", "", ""];
+    const hasText = cells.some((c) => c.trim());
+    result[s.key] = { cells: [...cells], tone: hasText ? "active" : "none" };
+  }
+  return result;
+}
+
+function emptyStore() {
+  return { days: {}, weeks: {}, months: {} };
 }
 
 function saveData() {
@@ -83,44 +139,61 @@ function getHourSlots() {
 
 function formatHourDisplay(hour24, index) {
   const num = hour24 % 12 || 12;
-  let period;
-
-  if (index < 9) period = "am";
-  else if (index === 9) period = "pm";
-  else if (index < 21) period = "pm";
-  else if (index === 21) period = "am";
-  else period = "am";
-
-  return { key: String(hour24), num, period, hour24 };
+  let period = "";
+  let showPeriod = false;
+  if (index === 0) { period = "am"; showPeriod = true; }
+  else if (index === 9) { period = "pm"; showPeriod = true; }
+  else if (index === 21) { period = "am"; showPeriod = true; }
+  return { key: String(hour24), num, period, showPeriod, hour24 };
 }
 
 function emptyDayData() {
   const slots = getHourSlots();
   return {
-    plan: slots.map(() => ({ text: "", done: false })),
-    do: Object.fromEntries(slots.map((s) => [s.key, ["", "", "", ""]])),
-    see: "",
+    plan: slots.map(() => ({ text: "", done: false, highlight: false })),
+    do: Object.fromEntries(slots.map((s) => [s.key, { cells: ["", "", "", ""], tone: "none" }])),
+    see: { missed: "", grateful: "", summary: "" },
   };
+}
+
+function emptyWork() {
+  return Array.from({ length: WORK_ROWS }, () => ({ text: "", done: false }));
+}
+
+function emptyLife() {
+  return Array.from({ length: LIFE_ROWS }, () => ({ text: "", done: false }));
 }
 
 function getDayData(date) {
   const key = dateKey(date);
-  if (!state.data[key]) {
-    state.data[key] = emptyDayData();
-  }
-  return state.data[key];
+  if (!state.data.days[key]) state.data.days[key] = emptyDayData();
+  return state.data.days[key];
 }
 
-function getWeeklyNotes(date) {
+function getWeekData(date) {
   const key = weekKey(date);
-  if (!state.data.weeks) state.data.weeks = {};
-  if (!state.data.weeks[key]) state.data.weeks[key] = "";
+  if (!state.data.weeks[key]) {
+    state.data.weeks[key] = { work: emptyWork(), life: emptyLife(), note: "" };
+  }
   return state.data.weeks[key];
+}
+
+function getMonthData(date) {
+  const key = monthKey(date);
+  if (!state.data.months[key]) {
+    state.data.months[key] = { notes: {}, tracker: {} };
+  }
+  return state.data.months[key];
 }
 
 function addDays(date, n) {
   const d = new Date(date);
   d.setDate(d.getDate() + n);
+  return startOfDay(d);
+}
+
+function addMonths(date, n) {
+  const d = new Date(date.getFullYear(), date.getMonth() + n, 1);
   return startOfDay(d);
 }
 
@@ -145,6 +218,25 @@ function getWeekDays(date) {
   return Array.from({ length: 7 }, (_, i) => addDays(start, i));
 }
 
+function getMonthWeeks(year, month) {
+  const first = new Date(year, month, 1);
+  const last = new Date(year, month + 1, 0);
+  const startOffset = (first.getDay() + 6) % 7;
+  const weeks = [];
+  let row = [];
+
+  for (let i = 0; i < startOffset; i++) row.push(null);
+  for (let d = 1; d <= last.getDate(); d++) {
+    row.push(new Date(year, month, d));
+    if (row.length === 7) { weeks.push(row); row = []; }
+  }
+  if (row.length) {
+    while (row.length < 7) row.push(null);
+    weeks.push(row);
+  }
+  return weeks;
+}
+
 function debounce(fn, ms) {
   let timer;
   return (...args) => {
@@ -155,76 +247,103 @@ function debounce(fn, ms) {
 
 const persist = debounce(saveData, 250);
 
+function updateLabel() {
+  const d = state.currentDate;
+  const di = d.getDay();
+  if (state.view === "monthly") {
+    els.currentLabel.textContent = `${d.getFullYear()}년 ${d.getMonth() + 1}월`;
+  } else if (state.view === "weekly") {
+    const ws = getWeekDays(d);
+    els.currentLabel.textContent = `${ws[0].getMonth() + 1}/${ws[0].getDate()} – ${ws[6].getMonth() + 1}/${ws[6].getDate()}`;
+  } else {
+    els.currentLabel.textContent = `${d.getFullYear()}년 ${d.getMonth() + 1}월 ${d.getDate()}일 (${DAY_NAMES_KO[di]})`;
+  }
+}
+
+/* ── DAILY ── */
 function renderDaily() {
   const date = state.currentDate;
   const data = getDayData(date);
-  const dayIndex = date.getDay();
+  const week = getWeekData(date);
+  const di = date.getDay();
   const slots = getHourSlots();
 
-  els.dayName.textContent = DAY_NAMES[dayIndex];
+  els.dayName.textContent = DAY_NAMES[di];
   els.dayNum.textContent = date.getDate();
+  els.dayHeader.className = "day-header" + (di === 6 ? " sat" : di === 0 ? " sun" : "");
 
-  els.dayHeader.classList.remove("weekend-sat", "weekend-sun");
-  if (dayIndex === 6) els.dayHeader.classList.add("weekend-sat");
-  if (dayIndex === 0) els.dayHeader.classList.add("weekend-sun");
+  renderTagList(els.workList, week.work, "work");
+  renderTagList(els.lifeList, week.life, "life");
+  renderSidebarCal(date);
 
-  els.currentLabel.textContent =
-    `${date.getFullYear()}년 ${date.getMonth() + 1}월 ${date.getDate()}일 (${DAY_NAMES_KO[dayIndex]})`;
+  els.hourRows.innerHTML = slots.map((s, i) => {
+    const plan = data.plan[i] || { text: "", done: false, highlight: false };
+    const doData = data.do[s.key] || { cells: ["", "", "", ""], tone: "none" };
+    const rowCls = [
+      "hour-row",
+      plan.done ? "plan-done" : "",
+      plan.highlight ? "plan-highlight" : "",
+    ].filter(Boolean).join(" ");
+    const periodHtml = s.showPeriod ? `<span class="time-period">${s.period}</span>` : `<span class="time-period"></span>`;
+    const toneCls = doData.tone !== "none" ? ` tone-${doData.tone}` : "";
 
-  els.timeColumn.innerHTML = slots
-    .map(
-      (s) => `
-      <div class="time-row">
-        <span class="time-num">${s.num}</span>
-        <span class="time-period">${s.period}</span>
-      </div>`
-    )
-    .join("");
+    return `
+      <div class="${rowCls}" data-index="${i}" data-hour="${s.key}">
+        <div class="cell-plan">
+          <label class="plan-check-wrap"><input type="checkbox" class="plan-check" ${plan.done ? "checked" : ""}></label>
+          <input type="text" class="plan-input" value="${escapeAttr(plan.text)}" title="더블클릭: 강조">
+        </div>
+        <div class="cell-time"><span class="time-num">${s.num}</span>${periodHtml}</div>
+        <div class="cell-do${toneCls}" title="더블클릭: 시간 톤 변경">
+          ${doData.cells.map((v, ci) => `<input type="text" class="do-cell" data-col="${ci}" value="${escapeAttr(v)}">`).join("")}
+        </div>
+      </div>`;
+  }).join("");
 
-  els.planList.innerHTML = slots
-    .map(
-      (s, i) => `
-      <div class="plan-row${data.plan[i]?.done ? " done" : ""}" data-index="${i}">
-        <input type="checkbox" class="plan-check" ${data.plan[i]?.done ? "checked" : ""} aria-label="완료">
-        <input type="text" class="plan-input" value="${escapeAttr(data.plan[i]?.text || "")}">
-      </div>`
-    )
-    .join("");
+  els.seeMissed.value = data.see.missed || "";
+  els.seeGrateful.value = data.see.grateful || "";
+  els.seeSummary.value = data.see.summary || "";
 
-  els.doGrid.innerHTML = slots
-    .map((s) => {
-      const cells = data.do[s.key] || ["", "", "", ""];
-      return `
-        <div class="do-row" data-hour="${s.key}">
-          <div class="do-hour-label" aria-hidden="true">
-            <span>${s.num}</span>
-            <span>${s.period}</span>
-          </div>
-          ${cells
-            .map(
-              (val, ci) =>
-                `<input type="text" class="do-cell" data-col="${ci}" value="${escapeAttr(val)}" aria-label="${s.num}${s.period} ${ci + 1}">`
-            )
-            .join("")}
-        </div>`;
-    })
-    .join("");
-
-  els.seeText.value = data.see || "";
   bindDailyEvents(date, data);
+  updateLabel();
+}
+
+function renderTagList(container, items, type) {
+  container.innerHTML = items.map((item, i) => `
+    <li class="tag-item">
+      <input type="checkbox" data-type="${type}" data-i="${i}" ${item.done ? "checked" : ""}>
+      <input type="text" data-type="${type}" data-i="${i}" value="${escapeAttr(item.text)}">
+    </li>`).join("");
+
+  container.querySelectorAll("input").forEach((inp) => {
+    inp.addEventListener("change", onTagChange);
+    inp.addEventListener("input", onTagChange);
+  });
+}
+
+function onTagChange(e) {
+  const week = getWeekData(state.currentDate);
+  const type = e.target.dataset.type;
+  const i = Number(e.target.dataset.i);
+  const list = type === "work" ? week.work : week.life;
+  if (e.target.type === "checkbox") list[i].done = e.target.checked;
+  else list[i].text = e.target.value;
+  persist();
 }
 
 function bindDailyEvents(date, data) {
   const key = dateKey(date);
 
-  els.planList.querySelectorAll(".plan-row").forEach((row) => {
+  els.hourRows.querySelectorAll(".hour-row").forEach((row) => {
     const i = Number(row.dataset.index);
+    const hour = row.dataset.hour;
     const check = row.querySelector(".plan-check");
     const input = row.querySelector(".plan-input");
+    const doEl = row.querySelector(".cell-do");
 
     check.addEventListener("change", () => {
       data.plan[i].done = check.checked;
-      row.classList.toggle("done", check.checked);
+      row.classList.toggle("plan-done", check.checked);
       persist();
     });
 
@@ -232,196 +351,280 @@ function bindDailyEvents(date, data) {
       data.plan[i].text = input.value;
       persist();
     });
-  });
 
-  els.doGrid.querySelectorAll(".do-row").forEach((row) => {
-    const hour = row.dataset.hour;
+    input.addEventListener("dblclick", () => {
+      data.plan[i].highlight = !data.plan[i].highlight;
+      row.classList.toggle("plan-highlight", data.plan[i].highlight);
+      persist();
+    });
+
+    doEl.addEventListener("dblclick", (e) => {
+      if (e.target.classList.contains("do-cell")) return;
+      const tones = ["none", "active", "sleep"];
+      const cur = data.do[hour].tone || "none";
+      const next = tones[(tones.indexOf(cur) + 1) % tones.length];
+      data.do[hour].tone = next;
+      doEl.classList.remove("tone-active", "tone-sleep");
+      if (next !== "none") doEl.classList.add(`tone-${next}`);
+      persist();
+    });
+
     row.querySelectorAll(".do-cell").forEach((cell) => {
       const col = Number(cell.dataset.col);
       cell.addEventListener("input", () => {
-        if (!data.do[hour]) data.do[hour] = ["", "", "", ""];
-        data.do[hour][col] = cell.value;
+        data.do[hour].cells[col] = cell.value;
+        if (cell.value.trim() && data.do[hour].tone === "none") {
+          data.do[hour].tone = "active";
+          doEl.classList.add("tone-active");
+        }
         persist();
       });
     });
   });
 
-  els.seeText.oninput = () => {
-    state.data[key].see = els.seeText.value;
-    persist();
+  const bindSee = (el, field) => {
+    el.oninput = () => { data.see[field] = el.value; persist(); };
   };
+  bindSee(els.seeMissed, "missed");
+  bindSee(els.seeGrateful, "grateful");
+  bindSee(els.seeSummary, "summary");
 }
 
-function summarizeDo(data) {
-  const parts = [];
-  for (const cells of Object.values(data.do || {})) {
-    for (const cell of cells) {
-      const text = cell.trim();
-      if (text) parts.push(text);
-    }
+function renderSidebarCal(date) {
+  const year = date.getFullYear();
+  const month = date.getMonth();
+  const weekDays = getWeekDays(date);
+  const weekKeys = new Set(weekDays.map(dateKey));
+
+  els.sidebarCal.innerHTML = buildMiniMonth(year, month, {
+    highlightWeek: weekKeys,
+    selected: dateKey(date),
+    onClick: true,
+  });
+
+  els.sidebarCal.querySelectorAll("[data-date]").forEach((el) => {
+    const go = () => { state.currentDate = parseDate(el.dataset.date); renderAll(); };
+    el.addEventListener("click", go);
+    el.addEventListener("keydown", (e) => { if (e.key === "Enter") go(); });
+  });
+}
+
+function buildMiniMonth(year, month, opts = {}) {
+  const first = new Date(year, month, 1);
+  const last = new Date(year, month + 1, 0);
+  const offset = (first.getDay() + 6) % 7;
+  const prevLast = new Date(year, month, 0).getDate();
+  const cells = [];
+
+  for (let i = 0; i < offset; i++) {
+    cells.push({ day: prevLast - offset + i + 1, other: true, date: new Date(year, month - 1, prevLast - offset + i + 1) });
   }
-  return parts.slice(0, 3).join(" · ");
+  for (let d = 1; d <= last.getDate(); d++) {
+    cells.push({ day: d, other: false, date: new Date(year, month, d) });
+  }
+  while (cells.length % 7) {
+    const d = cells.length - offset - last.getDate() + 1;
+    cells.push({ day: d, other: true, date: new Date(year, month + 1, d) });
+  }
+
+  const title = `<div class="mini-month-title">${month + 1} <span class="${month === 0 ? '' : ''}">${MONTH_ABBR[month]}</span></div>`;
+  const wd = DOW_MINI.map((w, i) => `<span class="wd${i === 6 ? " sun" : ""}">${w}</span>`).join("");
+  const days = cells.map(({ day, other, date: dt }) => {
+    const cls = ["d"];
+    if (other) cls.push("other");
+    if (dt.getDay() === 0 && !other) cls.push("sun");
+    if (opts.highlightWeek?.has(dateKey(dt)) && !other) cls.push("current-week");
+    if (opts.selected === dateKey(dt)) cls.push("selected");
+    const clickable = opts.onClick && !other ? `data-date="${dateKey(dt)}" role="button" tabindex="0"` : "";
+    return `<span class="${cls.join(" ")}" ${clickable}>${day}</span>`;
+  }).join("");
+
+  return `${title}<div class="mini-month-grid">${wd}${days}</div>`;
 }
 
+/* ── WEEKLY ── */
 function renderWeekly() {
   const weekDays = getWeekDays(state.currentDate);
-  const start = weekDays[0];
-  const end = weekDays[6];
+  const slots = getHourSlots();
 
-  els.weeklyRange.textContent =
-    `${start.getFullYear()}.${start.getMonth() + 1}.${start.getDate()} – ${end.getMonth() + 1}.${end.getDate()}`;
+  els.weeklyColumns.innerHTML = weekDays.map((day) => {
+    const data = getDayData(day);
+    const di = day.getDay();
+    const headCls = ["week-col-head", di === 6 ? "sat" : "", di === 0 ? "sun" : "", isToday(day) ? "today" : ""].filter(Boolean).join(" ");
 
-  els.weeklyNotes.value = getWeeklyNotes(state.currentDate);
-  els.weeklyNotes.oninput = () => {
-    state.data.weeks[weekKey(state.currentDate)] = els.weeklyNotes.value;
-    persist();
-  };
-
-  els.weeklyGrid.innerHTML = weekDays
-    .map((day) => {
-      const data = getDayData(day);
-      const dIdx = day.getDay();
-      const todayClass = isToday(day) ? " today" : "";
-      const weekendClass = dIdx === 6 ? " sat" : dIdx === 0 ? " sun" : "";
-
-      const planItems = data.plan
-        .filter((p) => p.text.trim())
-        .slice(0, 5)
-        .map(
-          (p) =>
-            `<div class="week-plan-item${p.done ? " done" : ""}"><span class="week-plan-dot">${p.done ? "✓" : "○"}</span>${escapeHtml(p.text)}</div>`
-        )
-        .join("");
-
-      const doPreview = summarizeDo(data);
-      const seePreview = data.see.trim();
+    const rows = slots.map((s, i) => {
+      const plan = data.plan[i] || { text: "", done: false, highlight: false };
+      const doData = data.do[s.key] || { cells: ["", "", "", ""], tone: "none" };
+      const dotCls = ["plan-dot", plan.done ? "done" : "", plan.highlight ? "highlight" : ""].filter(Boolean).join(" ");
+      const period = s.showPeriod ? `<span>${s.period}</span>` : "";
+      const blocks = doData.cells.map((c, ci) => {
+        const tone = c.trim() ? doData.tone : "none";
+        return `<div class="do-block${tone !== "none" ? ` tone-${tone}` : ""}" title="${escapeAttr(c)}"></div>`;
+      }).join("");
 
       return `
-        <div class="week-day" data-date="${dateKey(day)}" role="button" tabindex="0" aria-label="${DAY_NAMES[dIdx]} ${day.getDate()}일 보기">
-          <div class="week-day-header${todayClass}${weekendClass}">${DAY_NAMES[dIdx]} · ${day.getDate()}</div>
-          <div class="week-day-body">
-            <div class="week-section-label">Plan</div>
-            <div class="week-plan-preview">${planItems || '<span class="week-empty">—</span>'}</div>
-            <div class="week-section-label">Do</div>
-            <div class="week-do-preview">${doPreview ? escapeHtml(doPreview) : '<span class="week-empty">—</span>'}</div>
-            <div class="week-section-label">See</div>
-            <div class="week-see-preview">${seePreview ? escapeHtml(seePreview) : '<span class="week-empty">—</span>'}</div>
-          </div>
+        <div class="week-hour-row">
+          <div class="cell-plan"><span class="${dotCls}"></span><span class="plan-text">${escapeHtml(plan.text)}</span></div>
+          <div class="cell-time"><span>${s.num}</span>${period}</div>
+          <div class="cell-do">${blocks}</div>
         </div>`;
-    })
-    .join("");
+    }).join("");
 
-  els.weeklyGrid.querySelectorAll(".week-day").forEach((el) => {
-    const openDay = () => {
-      state.currentDate = parseDate(el.dataset.date);
-      state.calMonth = startOfMonth(state.currentDate);
+    const seeText = [data.see.missed, data.see.grateful, data.see.summary].filter(Boolean).join(" · ");
+
+    return `
+      <div class="week-col" data-date="${dateKey(day)}">
+        <div class="${headCls}">${DAY_NAMES[di]} ${day.getDate()}</div>
+        <div class="week-col-labels"><span>PLAN</span><span class="lbl-do">DO</span></div>
+        <div class="week-col-rows">${rows}</div>
+        <div class="week-col-see">${seeText ? escapeHtml(seeText) : "—"}</div>
+      </div>`;
+  }).join("");
+
+  els.weeklyColumns.querySelectorAll(".week-col").forEach((col) => {
+    col.addEventListener("click", (e) => {
+      if (e.target.closest(".week-col-rows")) return;
+      state.currentDate = parseDate(col.dataset.date);
       setView("daily");
-    };
-    el.addEventListener("click", openDay);
-    el.addEventListener("keydown", (e) => {
-      if (e.key === "Enter" || e.key === " ") {
-        e.preventDefault();
-        openDay();
-      }
     });
   });
+
+  updateLabel();
 }
 
-function renderCalendar() {
-  const year = state.calMonth.getFullYear();
-  const month = state.calMonth.getMonth();
+/* ── MONTHLY ── */
+function renderMonthly() {
+  const d = state.currentDate;
+  const year = d.getFullYear();
+  const month = d.getMonth();
+  const monthData = getMonthData(d);
+  const weeks = getMonthWeeks(year, month);
 
-  els.calTitle.textContent = `${month + 1} ${MONTH_ABBR[month]} '${String(year).slice(2)}`;
+  els.brandYear.textContent = year;
+  els.brandNum.textContent = month + 1;
+  els.brandAbbr.textContent = MONTH_ABBR[month];
 
-  const firstDay = new Date(year, month, 1);
-  const startOffset = (firstDay.getDay() + 6) % 7;
+  els.monthlyLeft.innerHTML = weeks.map((week) => {
+    const cells = [0, 1, 2].map((i) => renderMonthCell(week[i], monthData));
+    return `<div class="month-week-row left">${cells.join("")}</div>`;
+  }).join("");
+
+  els.monthlyRight.innerHTML = weeks.map((week) => {
+    const cells = [3, 4, 5, 6].map((i) => renderMonthCell(week[i], monthData));
+    return `<div class="month-week-row right">${cells.join("")}</div>`;
+  }).join("");
+
+  const prevM = new Date(year, month - 1, 1);
+  const nextM = new Date(year, month + 1, 1);
+  els.prevMiniMonth.innerHTML = buildMiniMonth(prevM.getFullYear(), prevM.getMonth());
+  els.nextMiniMonth.innerHTML = buildMiniMonth(nextM.getFullYear(), nextM.getMonth());
+
+  renderTracker(month, monthData);
+  bindMonthlyEvents(monthData);
+  updateLabel();
+}
+
+function renderMonthCell(date, monthData) {
+  if (!date) return `<div class="month-cell empty"></div>`;
+  const key = dateKey(date);
+  const di = date.getDay();
+  const cls = ["month-cell"];
+  if (di === 6) cls.push("sat");
+  if (di === 0) cls.push("sun");
+  if (isToday(date)) cls.push("today");
+  if (isSameDay(date, state.currentDate)) cls.push("selected");
+  const note = monthData.notes[key] || "";
+
+  return `
+    <div class="${cls.join(" ")}" data-date="${key}">
+      <div class="cell-date-bar"><span class="cell-date-num">${date.getDate()}</span></div>
+      <div class="cell-grid-area">
+        <textarea class="cell-note" data-date="${key}" rows="2">${escapeHtml(note)}</textarea>
+      </div>
+    </div>`;
+}
+
+function renderTracker(month, monthData) {
+  const year = state.currentDate.getFullYear();
   const daysInMonth = new Date(year, month + 1, 0).getDate();
-  const prevMonthDays = new Date(year, month, 0).getDate();
-
-  const currentWeekStart = dateKey(getWeekStart(state.currentDate));
-  const rows = [];
-  let row = [];
-
-  for (let i = 0; i < startOffset; i++) {
-    const day = prevMonthDays - startOffset + i + 1;
-    row.push({ day, other: true, date: new Date(year, month - 1, day) });
-  }
+  const leftDays = [];
+  const rightDays = [];
 
   for (let d = 1; d <= daysInMonth; d++) {
-    row.push({ day: d, other: false, date: new Date(year, month, d) });
-    if (row.length === 7) {
-      rows.push(row);
-      row = [];
+    const dt = new Date(year, month, d);
+    const entry = { d, dow: DAY_NAMES[dt.getDay()], di: dt.getDay(), key: dateKey(dt) };
+    if (d <= 15) leftDays.push(entry);
+    else rightDays.push(entry);
+  }
+
+  els.trackerLeft.innerHTML = buildTrackerHalf(leftDays, monthData);
+  els.trackerRight.innerHTML = buildTrackerHalf(rightDays, monthData);
+}
+
+function buildTrackerHalf(days, monthData) {
+  if (!days.length) return "";
+  const nums = days.map((d) => `<span class="td-num${d.di === 0 ? " sun" : d.di === 6 ? " sat" : ""}">${d.d}</span>`).join("");
+  const dows = days.map((d) => `<span class="td-dow${d.di === 0 ? " sun" : d.di === 6 ? " sat" : ""}">${d.dow.slice(0, 3)}</span>`).join("");
+  const cols = days.length;
+
+  let grid = "";
+  for (let r = 0; r < TRACKER_ROWS; r++) {
+    grid += `<div class="tracker-row" style="grid-template-columns:repeat(${cols},1fr)">`;
+    for (const d of days) {
+      const tKey = `${d.key}-${r}`;
+      const checked = monthData.tracker[tKey] ? " checked" : "";
+      grid += `<div class="tracker-cell${checked}" data-track="${tKey}"></div>`;
     }
+    grid += `</div>`;
   }
 
-  if (row.length) {
-    let trailingDay = 1;
-    while (row.length < 7) {
-      row.push({ day: trailingDay, other: true, date: new Date(year, month + 1, trailingDay) });
-      trailingDay += 1;
-    }
-    rows.push(row);
-  }
+  return `
+    <div class="tracker-days" style="grid-template-columns:repeat(${cols},1fr)">${nums}</div>
+    <div class="tracker-days" style="grid-template-columns:repeat(${cols},1fr)">${dows}</div>
+    <div class="tracker-grid">${grid}</div>`;
+}
 
-  let trailingDay = 1;
-  if (rows.length) {
-    const lastOther = [...rows[rows.length - 1]].reverse().find((c) => c.other);
-    if (lastOther) trailingDay = lastOther.day + 1;
-  }
+function bindMonthlyEvents(monthData) {
+  document.querySelectorAll(".month-cell:not(.empty)").forEach((cell) => {
+    cell.addEventListener("click", (e) => {
+      if (e.target.classList.contains("cell-note")) return;
+      state.currentDate = parseDate(cell.dataset.date);
+      setView("daily");
+    });
+  });
 
-  while (rows.length < 6) {
-    const weekRow = [];
-    for (let i = 0; i < 7; i++) {
-      weekRow.push({ day: trailingDay, other: true, date: new Date(year, month + 1, trailingDay) });
-      trailingDay += 1;
-    }
-    rows.push(weekRow);
-  }
+  document.querySelectorAll(".cell-note").forEach((ta) => {
+    ta.addEventListener("click", (e) => e.stopPropagation());
+    ta.addEventListener("input", () => {
+      monthData.notes[ta.dataset.date] = ta.value;
+      persist();
+    });
+  });
 
-  els.calDays.innerHTML = rows
-    .map((weekRow) => {
-      const rowWeekStart = dateKey(getWeekStart(weekRow.find((c) => !c.other)?.date || weekRow[0].date));
-      const isCurrentWeek = rowWeekStart === currentWeekStart;
-      const rowClass = isCurrentWeek ? "cal-week-row current-week" : "cal-week-row";
-
-      return `<div class="${rowClass}">${weekRow
-        .map(({ day, other, date }) => {
-          const classes = ["cal-day"];
-          if (other) classes.push("other-month");
-          if (date.getDay() === 0 && !other) classes.push("sunday");
-          if (isToday(date)) classes.push("today");
-          if (isSameDay(date, state.currentDate)) classes.push("selected");
-
-          return `<button type="button" class="${classes.join(" ")}" data-date="${dateKey(date)}">${day}</button>`;
-        })
-        .join("")}</div>`;
-    })
-    .join("");
-
-  els.calDays.querySelectorAll(".cal-day").forEach((btn) => {
-    btn.addEventListener("click", () => {
-      state.currentDate = parseDate(btn.dataset.date);
-      state.calMonth = startOfMonth(state.currentDate);
-      renderAll();
+  document.querySelectorAll(".tracker-cell").forEach((cell) => {
+    cell.addEventListener("click", () => {
+      const k = cell.dataset.track;
+      monthData.tracker[k] = !monthData.tracker[k];
+      cell.classList.toggle("checked", monthData.tracker[k]);
+      persist();
     });
   });
 }
 
+/* ── Navigation ── */
 function setView(view) {
   state.view = view;
-  document.querySelectorAll(".tab").forEach((tab) => {
-    tab.classList.toggle("active", tab.dataset.view === view);
-  });
-  els.dailyView.classList.toggle("active", view === "daily");
+  document.querySelectorAll(".tab").forEach((t) => t.classList.toggle("active", t.dataset.view === view));
+  els.monthlyView.classList.toggle("active", view === "monthly");
   els.weeklyView.classList.toggle("active", view === "weekly");
+  els.dailyView.classList.toggle("active", view === "daily");
   renderAll();
 }
 
 function renderAll() {
-  if (state.view === "daily") renderDaily();
-  else renderWeekly();
-  renderCalendar();
+  if (state.view === "monthly") renderMonthly();
+  else if (state.view === "weekly") renderWeekly();
+  else renderDaily();
 }
 
 function escapeHtml(text) {
@@ -431,11 +634,7 @@ function escapeHtml(text) {
 }
 
 function escapeAttr(text) {
-  return String(text)
-    .replace(/&/g, "&amp;")
-    .replace(/"/g, "&quot;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;");
+  return String(text).replace(/&/g, "&amp;").replace(/"/g, "&quot;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 }
 
 document.querySelectorAll(".tab").forEach((tab) => {
@@ -443,31 +642,22 @@ document.querySelectorAll(".tab").forEach((tab) => {
 });
 
 els.btnPrev.addEventListener("click", () => {
-  state.currentDate = addDays(state.currentDate, state.view === "weekly" ? -7 : -1);
-  state.calMonth = startOfMonth(state.currentDate);
+  if (state.view === "monthly") state.currentDate = addMonths(state.currentDate, -1);
+  else if (state.view === "weekly") state.currentDate = addDays(state.currentDate, -7);
+  else state.currentDate = addDays(state.currentDate, -1);
   renderAll();
 });
 
 els.btnNext.addEventListener("click", () => {
-  state.currentDate = addDays(state.currentDate, state.view === "weekly" ? 7 : 1);
-  state.calMonth = startOfMonth(state.currentDate);
+  if (state.view === "monthly") state.currentDate = addMonths(state.currentDate, 1);
+  else if (state.view === "weekly") state.currentDate = addDays(state.currentDate, 7);
+  else state.currentDate = addDays(state.currentDate, 1);
   renderAll();
 });
 
 els.btnToday.addEventListener("click", () => {
   state.currentDate = startOfDay(new Date());
-  state.calMonth = startOfMonth(state.currentDate);
   renderAll();
-});
-
-els.calPrev.addEventListener("click", () => {
-  state.calMonth = new Date(state.calMonth.getFullYear(), state.calMonth.getMonth() - 1, 1);
-  renderCalendar();
-});
-
-els.calNext.addEventListener("click", () => {
-  state.calMonth = new Date(state.calMonth.getFullYear(), state.calMonth.getMonth() + 1, 1);
-  renderCalendar();
 });
 
 renderAll();
