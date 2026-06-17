@@ -1,0 +1,89 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>종이 다이어리</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div class="app">
+    <header class="toolbar">
+      <div class="toolbar-left">
+        <div class="view-tabs">
+          <button type="button" class="tab active" data-view="daily">일간</button>
+          <button type="button" class="tab" data-view="weekly">주간</button>
+        </div>
+      </div>
+      <div class="toolbar-center">
+        <button type="button" class="nav-btn" id="btnPrev" aria-label="이전">‹</button>
+        <button type="button" class="today-btn" id="btnToday">오늘</button>
+        <button type="button" class="nav-btn" id="btnNext" aria-label="다음">›</button>
+      </div>
+      <div class="toolbar-right">
+        <span class="current-label" id="currentLabel"></span>
+      </div>
+    </header>
+
+    <main class="main-area">
+      <section id="dailyView" class="view-panel active">
+        <article class="paper-page" id="dailyPage">
+          <header class="day-header" id="dayHeader">
+            <span class="day-name" id="dayName"></span>
+            <span class="day-dot">·</span>
+            <span class="day-num" id="dayNum"></span>
+          </header>
+
+          <div class="planner-body">
+            <div class="col-plan">
+              <div class="section-title">PLAN</div>
+              <div class="plan-list" id="planList"></div>
+            </div>
+
+            <div class="col-time" id="timeColumn" aria-hidden="true"></div>
+
+            <div class="col-do">
+              <div class="section-title">DO</div>
+              <div class="do-grid" id="doGrid"></div>
+            </div>
+          </div>
+
+          <footer class="section-see">
+            <div class="section-title">SEE</div>
+            <textarea id="seeText" class="see-textarea" placeholder="오늘의 회고, 메모, 배운 점을 적어보세요..."></textarea>
+          </footer>
+        </article>
+      </section>
+
+      <section id="weeklyView" class="view-panel">
+        <div class="weekly-layout">
+          <div class="weekly-notes-panel paper-page">
+            <div class="weekly-notes-header">
+              <span class="weekly-label">WEEKLY</span>
+              <span class="weekly-range" id="weeklyRange"></span>
+            </div>
+            <textarea id="weeklyNotes" class="weekly-notes-textarea" placeholder="이번 주 목표, 메모, 할 일을 적어보세요..."></textarea>
+          </div>
+          <div class="weekly-days-panel">
+            <div class="weekly-grid" id="weeklyGrid"></div>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <aside class="mini-calendar paper-page" id="miniCalendar">
+      <div class="cal-header">
+        <button type="button" class="cal-nav" id="calPrev" aria-label="이전 달">‹</button>
+        <span class="cal-title" id="calTitle"></span>
+        <button type="button" class="cal-nav" id="calNext" aria-label="다음 달">›</button>
+      </div>
+      <div class="cal-weekdays">
+        <span>M</span><span>T</span><span>W</span><span>T</span><span>F</span><span>S</span><span class="sun-col">S</span>
+      </div>
+      <div class="cal-days" id="calDays"></div>
+    </aside>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>
