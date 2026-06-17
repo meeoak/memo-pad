@@ -21,13 +21,7 @@ const els = {
   dailyView: document.getElementById("dailyView"),
   weeklyView: document.getElementById("weeklyView"),
   monthlyView: document.getElementById("monthlyView"),
-  dayName: document.getElementById("dayName"),
-  dayNum: document.getElementById("dayNum"),
-  dayHeader: document.getElementById("dayHeader"),
-  hourRows: document.getElementById("hourRows"),
-  seeMissed: document.getElementById("seeMissed"),
-  seeGrateful: document.getElementById("seeGrateful"),
-  seeSummary: document.getElementById("seeSummary"),
+  dailyDays: document.getElementById("dailyDays"),
   workList: document.getElementById("workList"),
   lifeList: document.getElementById("lifeList"),
   sidebarCal: document.getElementById("sidebarCal"),
@@ -256,34 +250,31 @@ function updateLabel() {
     const ws = getWeekDays(d);
     els.currentLabel.textContent = `${ws[0].getMonth() + 1}/${ws[0].getDate()} – ${ws[6].getMonth() + 1}/${ws[6].getDate()}`;
   } else {
-    els.currentLabel.textContent = `${d.getFullYear()}년 ${d.getMonth() + 1}월 ${d.getDate()}일 (${DAY_NAMES_KO[di]})`;
+    const d2 = addDays(d, 1);
+    els.currentLabel.textContent =
+      `${d.getFullYear()}년 ${d.getMonth() + 1}월 ${d.getDate()}일 (${DAY_NAMES_KO[di]}) – ${d2.getMonth() + 1}월 ${d2.getDate()}일 (${DAY_NAMES_KO[d2.getDay()]})`;
   }
 }
 
-/* ── DAILY ── */
-function renderDaily() {
-  const date = state.currentDate;
+function getDailyPair() {
+  return [state.currentDate, addDays(state.currentDate, 1)];
+}
+
+function buildDayColumnHTML(date) {
   const data = getDayData(date);
-  const week = getWeekData(date);
   const di = date.getDay();
   const slots = getHourSlots();
+  const headerCls = [
+    "day-header",
+    di === 6 ? "sat" : "",
+    di === 0 ? "sun" : "",
+    isToday(date) ? "today" : "",
+  ].filter(Boolean).join(" ");
 
-  els.dayName.textContent = DAY_NAMES[di];
-  els.dayNum.textContent = date.getDate();
-  els.dayHeader.className = "day-header" + (di === 6 ? " sat" : di === 0 ? " sun" : "");
-
-  renderTagList(els.workList, week.work, "work");
-  renderTagList(els.lifeList, week.life, "life");
-  renderSidebarCal(date);
-
-  els.hourRows.innerHTML = slots.map((s, i) => {
+  const hourRows = slots.map((s, i) => {
     const plan = data.plan[i] || { text: "", done: false, highlight: false };
     const doData = data.do[s.key] || { cells: ["", "", "", ""], tone: "none" };
-    const rowCls = [
-      "hour-row",
-      plan.done ? "plan-done" : "",
-      plan.highlight ? "plan-highlight" : "",
-    ].filter(Boolean).join(" ");
+    const rowCls = ["hour-row", plan.done ? "plan-done" : "", plan.highlight ? "plan-highlight" : ""].filter(Boolean).join(" ");
     const periodHtml = s.showPeriod ? `<span class="time-period">${s.period}</span>` : `<span class="time-period"></span>`;
     const toneCls = doData.tone !== "none" ? ` tone-${doData.tone}` : "";
 
@@ -300,11 +291,37 @@ function renderDaily() {
       </div>`;
   }).join("");
 
-  els.seeMissed.value = data.see.missed || "";
-  els.seeGrateful.value = data.see.grateful || "";
-  els.seeSummary.value = data.see.summary || "";
+  return `
+    <article class="day-column" data-date="${dateKey(date)}">
+      <header class="${headerCls}"><span>${DAY_NAMES[di]}</span> <span>${date.getDate()}</span></header>
+      <div class="section-labels"><span class="lbl-plan">PLAN</span><span class="lbl-do">DO</span></div>
+      <div class="hour-rows">${hourRows}</div>
+      <footer class="see-block">
+        <span class="lbl-see">SEE</span>
+        <div class="see-fields">
+          <label class="see-field"><span class="see-num">1</span><input type="text" class="see-missed" value="${escapeAttr(data.see.missed || "")}" placeholder="오늘 못한 것"></label>
+          <label class="see-field"><span class="see-num">2</span><input type="text" class="see-grateful" value="${escapeAttr(data.see.grateful || "")}" placeholder="감사한 일"></label>
+          <label class="see-field"><span class="see-num">3</span><input type="text" class="see-summary" value="${escapeAttr(data.see.summary || "")}" placeholder="오늘의 하루"></label>
+        </div>
+      </footer>
+    </article>`;
+}
 
-  bindDailyEvents(date, data);
+/* ── DAILY ── */
+function renderDaily() {
+  const [day1, day2] = getDailyPair();
+  const week = getWeekData(day1);
+
+  renderTagList(els.workList, week.work, "work");
+  renderTagList(els.lifeList, week.life, "life");
+  renderSidebarCal(day1, day2);
+
+  els.dailyDays.innerHTML = buildDayColumnHTML(day1) + buildDayColumnHTML(day2);
+
+  els.dailyDays.querySelectorAll(".day-column").forEach((col) => {
+    bindDayEvents(col, parseDate(col.dataset.date));
+  });
+
   updateLabel();
 }
 
@@ -331,10 +348,10 @@ function onTagChange(e) {
   persist();
 }
 
-function bindDailyEvents(date, data) {
-  const key = dateKey(date);
+function bindDayEvents(col, date) {
+  const data = getDayData(date);
 
-  els.hourRows.querySelectorAll(".hour-row").forEach((row) => {
+  col.querySelectorAll(".hour-row").forEach((row) => {
     const i = Number(row.dataset.index);
     const hour = row.dataset.hour;
     const check = row.querySelector(".plan-check");
@@ -370,9 +387,9 @@ function bindDailyEvents(date, data) {
     });
 
     row.querySelectorAll(".do-cell").forEach((cell) => {
-      const col = Number(cell.dataset.col);
+      const ci = Number(cell.dataset.col);
       cell.addEventListener("input", () => {
-        data.do[hour].cells[col] = cell.value;
+        data.do[hour].cells[ci] = cell.value;
         if (cell.value.trim() && data.do[hour].tone === "none") {
           data.do[hour].tone = "active";
           doEl.classList.add("tone-active");
@@ -382,23 +399,28 @@ function bindDailyEvents(date, data) {
     });
   });
 
-  const bindSee = (el, field) => {
-    el.oninput = () => { data.see[field] = el.value; persist(); };
+  const bindSee = (sel, field) => {
+    const el = col.querySelector(sel);
+    el.addEventListener("input", () => {
+      data.see[field] = el.value;
+      persist();
+    });
   };
-  bindSee(els.seeMissed, "missed");
-  bindSee(els.seeGrateful, "grateful");
-  bindSee(els.seeSummary, "summary");
+  bindSee(".see-missed", "missed");
+  bindSee(".see-grateful", "grateful");
+  bindSee(".see-summary", "summary");
 }
 
-function renderSidebarCal(date) {
-  const year = date.getFullYear();
-  const month = date.getMonth();
-  const weekDays = getWeekDays(date);
+function renderSidebarCal(day1, day2) {
+  const year = day1.getFullYear();
+  const month = day1.getMonth();
+  const weekDays = getWeekDays(day1);
   const weekKeys = new Set(weekDays.map(dateKey));
+  const selected = new Set([dateKey(day1), dateKey(day2)]);
 
   els.sidebarCal.innerHTML = buildMiniMonth(year, month, {
     highlightWeek: weekKeys,
-    selected: dateKey(date),
+    selectedSet: selected,
     onClick: true,
   });
 
@@ -434,7 +456,7 @@ function buildMiniMonth(year, month, opts = {}) {
     if (other) cls.push("other");
     if (dt.getDay() === 0 && !other) cls.push("sun");
     if (opts.highlightWeek?.has(dateKey(dt)) && !other) cls.push("current-week");
-    if (opts.selected === dateKey(dt)) cls.push("selected");
+    if (opts.selected === dateKey(dt) || opts.selectedSet?.has(dateKey(dt))) cls.push("selected");
     const clickable = opts.onClick && !other ? `data-date="${dateKey(dt)}" role="button" tabindex="0"` : "";
     return `<span class="${cls.join(" ")}" ${clickable}>${day}</span>`;
   }).join("");
@@ -644,14 +666,14 @@ document.querySelectorAll(".tab").forEach((tab) => {
 els.btnPrev.addEventListener("click", () => {
   if (state.view === "monthly") state.currentDate = addMonths(state.currentDate, -1);
   else if (state.view === "weekly") state.currentDate = addDays(state.currentDate, -7);
-  else state.currentDate = addDays(state.currentDate, -1);
+  else state.currentDate = addDays(state.currentDate, -2);
   renderAll();
 });
 
 els.btnNext.addEventListener("click", () => {
   if (state.view === "monthly") state.currentDate = addMonths(state.currentDate, 1);
   else if (state.view === "weekly") state.currentDate = addDays(state.currentDate, 7);
-  else state.currentDate = addDays(state.currentDate, 1);
+  else state.currentDate = addDays(state.currentDate, 2);
   renderAll();
 });
 
