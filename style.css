@@ -219,7 +219,44 @@ body {
   min-width: 0;
 }
 
+.plan-actions {
+  display: flex;
+  align-items: center;
+  gap: 1px;
+  flex-shrink: 0;
+}
+
 .plan-check-wrap { display: flex; flex-shrink: 0; }
+
+.plan-act {
+  border: none;
+  background: transparent;
+  color: var(--text-muted);
+  font-family: inherit;
+  font-size: 0.55rem;
+  line-height: 1;
+  width: 10px;
+  height: var(--row-h);
+  padding: 0;
+  cursor: pointer;
+  opacity: 0;
+  flex-shrink: 0;
+}
+
+.week-hour-row.has-plan:hover .plan-act,
+.week-hour-row.has-plan:focus-within .plan-act {
+  opacity: 1;
+}
+
+.plan-act:hover:not(:disabled) {
+  color: var(--accent);
+  background: rgba(0, 0, 0, 0.04);
+}
+
+.plan-act:disabled {
+  cursor: default;
+  opacity: 0 !important;
+}
 
 .plan-check {
   appearance: none;

@@ -195,14 +195,18 @@ function buildWeekColumnHTML(date) {
 
   const rows = slots.map((s, i) => {
     const plan = data.plan[i] || { text: "", done: false, highlight: false };
-    const rowCls = ["week-hour-row", plan.done ? "plan-done" : "", plan.highlight ? "plan-highlight" : ""].filter(Boolean).join(" ");
+    const rowCls = ["week-hour-row", plan.text?.trim() ? "has-plan" : "", plan.done ? "plan-done" : "", plan.highlight ? "plan-highlight" : ""].filter(Boolean).join(" ");
     const periodHtml = s.showPeriod ? `<span class="time-period">${s.period}</span>` : `<span class="time-period"></span>`;
 
     return `
       <div class="${rowCls}" data-index="${i}" data-hour="${s.key}">
         <div class="cell-time"><span class="time-num">${s.num}</span>${periodHtml}</div>
         <div class="cell-plan">
-          <label class="plan-check-wrap"><input type="checkbox" class="plan-check" ${plan.done ? "checked" : ""}></label>
+          <div class="plan-actions">
+            <label class="plan-check-wrap" title="완료"><input type="checkbox" class="plan-check" ${plan.done ? "checked" : ""}></label>
+            <button type="button" class="plan-act plan-act-tomorrow" title="내일 같은 시간">→</button>
+            <button type="button" class="plan-act plan-act-later" title="한 시간 미루기">↓</button>
+          </div>
           <input type="text" class="plan-input" value="${escapeAttr(plan.text)}" title="더블클릭: 강조">
         </div>
       </div>`;
@@ -264,6 +268,39 @@ function onTagChange(e) {
   persist();
 }
 
+function emptyPlanItem() {
+  return { text: "", done: false, highlight: false };
+}
+
+function movePlanItem(fromDate, fromIndex, toDate, toIndex) {
+  const fromData = getDayData(fromDate);
+  const item = fromData.plan[fromIndex];
+  if (!item?.text?.trim()) return false;
+
+  const toData = getDayData(toDate);
+  const target = toData.plan[toIndex];
+  const moving = { text: item.text, done: false, highlight: item.highlight };
+
+  if (target.text.trim()) {
+    fromData.plan[fromIndex] = { text: target.text, done: target.done, highlight: target.highlight };
+  } else {
+    fromData.plan[fromIndex] = emptyPlanItem();
+  }
+
+  toData.plan[toIndex] = moving;
+  saveData();
+  return true;
+}
+
+function deferPlanToTomorrow(date, index) {
+  return movePlanItem(date, index, addDays(date, 1), index);
+}
+
+function deferPlanToday(date, index) {
+  if (index >= getHourSlots().length - 1) return false;
+  return movePlanItem(date, index, date, index + 1);
+}
+
 function bindDayEvents(col, date) {
   const data = getDayData(date);
 
@@ -271,6 +308,15 @@ function bindDayEvents(col, date) {
     const i = Number(row.dataset.index);
     const check = row.querySelector(".plan-check");
     const input = row.querySelector(".plan-input");
+    const btnTomorrow = row.querySelector(".plan-act-tomorrow");
+    const btnLater = row.querySelector(".plan-act-later");
+
+    const syncActions = () => {
+      const hasText = !!input.value.trim();
+      row.classList.toggle("has-plan", hasText);
+      btnTomorrow.disabled = !hasText;
+      btnLater.disabled = !hasText || i >= getHourSlots().length - 1;
+    };
 
     check.addEventListener("change", () => {
       data.plan[i].done = check.checked;
@@ -280,6 +326,7 @@ function bindDayEvents(col, date) {
 
     input.addEventListener("input", () => {
       data.plan[i].text = input.value;
+      syncActions();
       persist();
     });
 
@@ -288,6 +335,27 @@ function bindDayEvents(col, date) {
       row.classList.toggle("plan-highlight", data.plan[i].highlight);
       persist();
     });
+
+    input.addEventListener("keydown", (e) => {
+      if (!input.value.trim()) return;
+      if (e.key === "ArrowRight" && e.altKey) {
+        e.preventDefault();
+        if (deferPlanToTomorrow(date, i)) renderWeekly();
+      } else if (e.key === "ArrowDown" && e.altKey) {
+        e.preventDefault();
+        if (deferPlanToday(date, i)) renderWeekly();
+      }
+    });
+
+    btnTomorrow.addEventListener("click", () => {
+      if (deferPlanToTomorrow(date, i)) renderWeekly();
+    });
+
+    btnLater.addEventListener("click", () => {
+      if (deferPlanToday(date, i)) renderWeekly();
+    });
+
+    syncActions();
   });
 
   const bindSee = (sel, field) => {
