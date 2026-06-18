@@ -10,7 +10,10 @@ let state = {
   data: loadData(),
 };
 
+const MOBILE_MQ = window.matchMedia("(max-width: 768px)");
+
 const els = {
+  toolbarTitle: document.getElementById("toolbarTitle"),
   btnPrev: document.getElementById("btnPrev"),
   btnNext: document.getElementById("btnNext"),
   btnToday: document.getElementById("btnToday"),
@@ -297,6 +300,18 @@ function getWeekDays(date) {
   return Array.from({ length: 7 }, (_, i) => addDays(start, i));
 }
 
+function isMobileView() {
+  return MOBILE_MQ.matches;
+}
+
+function navStepDays() {
+  return isMobileView() ? 1 : 7;
+}
+
+function getVisibleDays(date = state.currentDate) {
+  return isMobileView() ? [startOfDay(date)] : getWeekDays(date);
+}
+
 function debounce(fn, ms) {
   let timer;
   return (...args) => {
@@ -308,9 +323,23 @@ function debounce(fn, ms) {
 const persist = debounce(saveData, 250);
 
 function updateLabel() {
+  if (isMobileView()) {
+    const d = state.currentDate;
+    const di = d.getDay();
+    els.currentLabel.textContent =
+      `${d.getFullYear()}년 ${d.getMonth() + 1}월 ${d.getDate()}일 · ${DAY_NAMES[di]}`;
+    if (els.toolbarTitle) els.toolbarTitle.textContent = "DAILY";
+    if (els.btnPrev) els.btnPrev.setAttribute("aria-label", "이전 날");
+    if (els.btnNext) els.btnNext.setAttribute("aria-label", "다음 날");
+    return;
+  }
+
   const ws = getWeekDays(state.currentDate);
   els.currentLabel.textContent =
     `${ws[0].getFullYear()}년 ${ws[0].getMonth() + 1}/${ws[0].getDate()} – ${ws[6].getMonth() + 1}/${ws[6].getDate()}`;
+  if (els.toolbarTitle) els.toolbarTitle.textContent = "WEEKLY";
+  if (els.btnPrev) els.btnPrev.setAttribute("aria-label", "이전 주");
+  if (els.btnNext) els.btnNext.setAttribute("aria-label", "다음 주");
 }
 
 function buildWeekColumnHTML(date) {
@@ -323,10 +352,13 @@ function buildWeekColumnHTML(date) {
     const plan = normalizePlanItem(data.plan[i]);
     const rowCls = planRowClasses(plan);
     const periodHtml = s.showPeriod ? `<span class="time-period">${s.period}</span>` : `<span class="time-period"></span>`;
+    const timeCell = plan.text.trim()
+      ? `<div class="cell-time drag-handle" draggable="true" title="드래그하여 이동"><span class="time-num">${s.num}</span>${periodHtml}</div>`
+      : `<div class="cell-time"><span class="time-num">${s.num}</span>${periodHtml}</div>`;
 
     return `
       <div class="${rowCls}" data-index="${i}" data-hour="${s.key}">
-        <div class="cell-time"><span class="time-num">${s.num}</span>${periodHtml}</div>
+        ${timeCell}
         <div class="cell-plan">
           <button type="button" class="plan-check${plan.done ? " is-done" : ""}" aria-label="완료" title="완료">✓</button>
           <input type="text" class="plan-input" value="${escapeAttr(plan.text)}" title="더블클릭: 강조">
@@ -358,18 +390,23 @@ function buildWeekColumnHTML(date) {
 }
 
 function renderWeekly() {
+  const visibleDays = getVisibleDays(state.currentDate);
   const weekDays = getWeekDays(state.currentDate);
   const week = getWeekData(state.currentDate);
+
+  document.body.classList.toggle("mobile-daily", isMobileView());
 
   renderTagList(els.workList, week.work, "work");
   renderTagList(els.lifeList, week.life, "life");
   renderSidebarCal(weekDays);
 
-  els.weeklyColumns.innerHTML = weekDays.map(buildWeekColumnHTML).join("");
+  els.weeklyColumns.innerHTML = visibleDays.map(buildWeekColumnHTML).join("");
 
   els.weeklyColumns.querySelectorAll(".week-col").forEach((col) => {
     bindDayEvents(col, parseDate(col.dataset.date));
   });
+
+  bindPlanDragDrop(els.weeklyColumns);
 
   els.weeklyColumns.querySelectorAll(".col-carry-btn").forEach((btn) => {
     btn.addEventListener("click", () => {
@@ -470,6 +507,90 @@ function deferPlanToTomorrow(date, index) {
 function deferPlanToday(date, index) {
   if (index >= getHourSlots().length - 1) return false;
   return movePlanItem(date, index, date, index + 1, "later");
+}
+
+function dayDiff(fromDate, toDate) {
+  return Math.round((startOfDay(toDate) - startOfDay(fromDate)) / 86400000);
+}
+
+function getDragDeferStatus(fromDate, fromIndex, toDate, toIndex) {
+  if (dateKey(fromDate) === dateKey(toDate)) {
+    return toIndex > fromIndex ? "later" : null;
+  }
+  return dayDiff(fromDate, toDate) === 1 ? "tomorrow" : null;
+}
+
+function bindPlanDragDrop(container) {
+  if (container.dataset.dragBound) return;
+  container.dataset.dragBound = "1";
+
+  let dragSource = null;
+
+  container.addEventListener("dragstart", (e) => {
+    const handle = e.target.closest(".drag-handle");
+    if (!handle) return;
+    const row = handle.closest(".week-hour-row");
+    const col = row?.closest(".week-col");
+    if (!row || !col) return;
+
+    dragSource = {
+      fromDate: col.dataset.date,
+      fromIndex: Number(row.dataset.index),
+    };
+    e.dataTransfer.setData("text/plain", `${dragSource.fromDate}:${dragSource.fromIndex}`);
+    e.dataTransfer.effectAllowed = "move";
+    row.classList.add("dragging");
+  });
+
+  container.addEventListener("dragend", (e) => {
+    e.target.closest(".week-hour-row")?.classList.remove("dragging");
+    container.querySelectorAll(".drop-target").forEach((el) => el.classList.remove("drop-target"));
+    dragSource = null;
+  });
+
+  container.addEventListener("dragover", (e) => {
+    const row = e.target.closest(".week-hour-row");
+    if (!row || !dragSource) return;
+    e.preventDefault();
+    e.dataTransfer.dropEffect = "move";
+    container.querySelectorAll(".drop-target").forEach((el) => el.classList.remove("drop-target"));
+    row.classList.add("drop-target");
+  });
+
+  container.addEventListener("dragleave", (e) => {
+    const row = e.target.closest(".week-hour-row");
+    if (row && !row.contains(e.relatedTarget)) row.classList.remove("drop-target");
+  });
+
+  container.addEventListener("drop", (e) => {
+    const row = e.target.closest(".week-hour-row");
+    const col = row?.closest(".week-col");
+    if (!row || !col) return;
+    e.preventDefault();
+    row.classList.remove("drop-target");
+
+    let fromDateKey;
+    let fromIndex;
+    const raw = e.dataTransfer.getData("text/plain");
+    if (raw.includes(":")) {
+      [fromDateKey, fromIndex] = raw.split(":");
+      fromIndex = Number(fromIndex);
+    } else if (dragSource) {
+      fromDateKey = dragSource.fromDate;
+      fromIndex = dragSource.fromIndex;
+    } else {
+      return;
+    }
+
+    const toDateKey = col.dataset.date;
+    const toIndex = Number(row.dataset.index);
+    if (fromDateKey === toDateKey && fromIndex === toIndex) return;
+
+    const fromDate = parseDate(fromDateKey);
+    const toDate = parseDate(toDateKey);
+    const deferStatus = getDragDeferStatus(fromDate, fromIndex, toDate, toIndex);
+    if (movePlanItem(fromDate, fromIndex, toDate, toIndex, deferStatus)) renderWeekly();
+  });
 }
 
 function bindDayEvents(col, date) {
@@ -588,6 +709,8 @@ function renderSidebarCal(weekDays) {
   });
 }
 
+MOBILE_MQ.addEventListener("change", () => renderWeekly());
+
 function buildMiniMonth(year, month, opts = {}) {
   const first = new Date(year, month, 1);
   const last = new Date(year, month + 1, 0);
@@ -626,12 +749,12 @@ function escapeAttr(text) {
 }
 
 els.btnPrev.addEventListener("click", () => {
-  state.currentDate = addDays(state.currentDate, -7);
+  state.currentDate = addDays(state.currentDate, -navStepDays());
   renderWeekly();
 });
 
 els.btnNext.addEventListener("click", () => {
-  state.currentDate = addDays(state.currentDate, 7);
+  state.currentDate = addDays(state.currentDate, navStepDays());
   renderWeekly();
 });
 
