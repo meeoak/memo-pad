@@ -13,7 +13,7 @@
   --sun-text: #c44;
   --active: #fff59d;
   --defer-tomorrow: #ef9a9a;
-  --done-blue: #1565c0;
+  --done-bg: #bbdefb;
   --sleep: #e8e8e8;
   --accent: #222222;
   --row-h: 24px;
@@ -323,33 +323,27 @@ body {
 }
 
 .week-hour-row.plan-highlight .cell-plan { background: var(--active); }
+
+.week-hour-row.plan-done .cell-plan {
+  background: var(--done-bg);
+}
+
 .week-hour-row.plan-done .plan-input {
   text-decoration: line-through;
-  color: var(--done-blue);
-  font-weight: 500;
+  color: var(--text);
 }
 
 .week-hour-row.plan-done .plan-check.is-done {
-  color: var(--done-blue);
-  border-color: var(--done-blue);
+  color: var(--accent);
+  border-color: var(--line-dark);
 }
 
 .week-hour-row.plan-defer-later .cell-plan {
   background: var(--active);
 }
 
-.week-hour-row.plan-defer-later .plan-input {
-  color: #1a1a1a;
-  font-weight: 600;
-}
-
 .week-hour-row.plan-defer-tomorrow .cell-plan {
   background: var(--defer-tomorrow);
-}
-
-.week-hour-row.plan-defer-tomorrow .plan-input {
-  color: #1a1a1a;
-  font-weight: 600;
 }
 
 .cell-time {
