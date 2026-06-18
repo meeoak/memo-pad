@@ -4,86 +4,37 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>플래너</title>
-  <link rel="stylesheet" href="style.css">
+  <link rel="stylesheet" href="style.css?v=3">
 </head>
 <body>
   <div class="app">
     <header class="toolbar">
-      <div class="view-tabs">
-        <button type="button" class="tab" data-view="monthly">월간</button>
-        <button type="button" class="tab" data-view="weekly">주간</button>
-        <button type="button" class="tab active" data-view="daily">일간</button>
-      </div>
+      <span class="toolbar-title">WEEKLY</span>
       <div class="toolbar-center">
-        <button type="button" class="nav-btn" id="btnPrev" aria-label="이전">‹</button>
+        <button type="button" class="nav-btn" id="btnPrev" aria-label="이전 주">‹</button>
         <button type="button" class="today-btn" id="btnToday">오늘</button>
-        <button type="button" class="nav-btn" id="btnNext" aria-label="다음">›</button>
+        <button type="button" class="nav-btn" id="btnNext" aria-label="다음 주">›</button>
       </div>
       <span class="current-label" id="currentLabel"></span>
     </header>
 
     <main class="main-area">
-      <!-- 월간 -->
-      <section id="monthlyView" class="view-panel">
-        <div class="monthly-spread sheet">
-          <div class="monthly-page monthly-left">
-            <header class="monthly-brand">
-              <span class="brand-year" id="brandYear"></span>
-              <div class="brand-month"><span class="brand-num" id="brandNum"></span> <span id="brandAbbr"></span></div>
-              <span class="brand-sub">MONTHLY PLAN</span>
-            </header>
-            <div class="monthly-cols-head monthly-cols-left">
-              <span>MON</span><span>TUE</span><span>WED</span>
-            </div>
-            <div class="monthly-cols-body" id="monthlyLeft"></div>
-            <footer class="monthly-foot">
-              <div class="mini-month-block" id="prevMiniMonth"></div>
-              <div class="task-tracker-block">
-                <span class="tracker-title">TASK TRACKER</span>
-                <div id="trackerLeft"></div>
-              </div>
-            </footer>
+      <div class="weekly-layout sheet">
+        <aside class="weekly-sidebar">
+          <div class="tag-section">
+            <h3 class="tag-head">#WORK</h3>
+            <ul class="tag-list" id="workList"></ul>
           </div>
-          <div class="monthly-page monthly-right">
-            <div class="monthly-cols-head monthly-cols-right">
-              <span>THU</span><span>FRI</span><span class="sat-head">SAT</span><span class="sun-head">SUN</span>
-            </div>
-            <div class="monthly-cols-body" id="monthlyRight"></div>
-            <footer class="monthly-foot">
-              <div class="mini-month-block" id="nextMiniMonth"></div>
-              <div class="task-tracker-block">
-                <div id="trackerRight"></div>
-              </div>
-            </footer>
+          <div class="tag-section">
+            <h3 class="tag-head">#LIFE</h3>
+            <ul class="tag-list" id="lifeList"></ul>
           </div>
-        </div>
-      </section>
-
-      <!-- 주간 -->
-      <section id="weeklyView" class="view-panel">
-        <div class="weekly-spread sheet" id="weeklyColumns"></div>
-      </section>
-
-      <!-- 일간 -->
-      <section id="dailyView" class="view-panel active">
-        <div class="daily-spread sheet">
-          <aside class="daily-sidebar">
-            <h2 class="sidebar-title">WEEKLY</h2>
-            <div class="tag-section">
-              <h3 class="tag-head">#WORK</h3>
-              <ul class="tag-list" id="workList"></ul>
-            </div>
-            <div class="tag-section">
-              <h3 class="tag-head">#LIFE</h3>
-              <ul class="tag-list" id="lifeList"></ul>
-            </div>
-            <div class="sidebar-cal" id="sidebarCal"></div>
-          </aside>
-          <div class="daily-days" id="dailyDays"></div>
-        </div>
-      </section>
+          <div class="sidebar-cal" id="sidebarCal"></div>
+        </aside>
+        <div class="weekly-days" id="weeklyColumns"></div>
+      </div>
     </main>
   </div>
-  <script src="app.js"></script>
+  <script src="app.js?v=3"></script>
 </body>
 </html>
