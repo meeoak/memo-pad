@@ -195,20 +195,15 @@ function buildWeekColumnHTML(date) {
 
   const rows = slots.map((s, i) => {
     const plan = data.plan[i] || { text: "", done: false, highlight: false };
-    const doData = data.do[s.key] || { cells: ["", "", "", ""], tone: "none" };
     const rowCls = ["week-hour-row", plan.done ? "plan-done" : "", plan.highlight ? "plan-highlight" : ""].filter(Boolean).join(" ");
     const periodHtml = s.showPeriod ? `<span class="time-period">${s.period}</span>` : `<span class="time-period"></span>`;
-    const toneCls = doData.tone !== "none" ? ` tone-${doData.tone}` : "";
 
     return `
       <div class="${rowCls}" data-index="${i}" data-hour="${s.key}">
+        <div class="cell-time"><span class="time-num">${s.num}</span>${periodHtml}</div>
         <div class="cell-plan">
           <label class="plan-check-wrap"><input type="checkbox" class="plan-check" ${plan.done ? "checked" : ""}></label>
           <input type="text" class="plan-input" value="${escapeAttr(plan.text)}" title="더블클릭: 강조">
-        </div>
-        <div class="cell-time"><span class="time-num">${s.num}</span>${periodHtml}</div>
-        <div class="cell-do${toneCls}" title="더블클릭: 시간 톤 변경">
-          ${doData.cells.map((v, ci) => `<input type="text" class="do-cell" data-col="${ci}" value="${escapeAttr(v)}">`).join("")}
         </div>
       </div>`;
   }).join("");
@@ -216,7 +211,7 @@ function buildWeekColumnHTML(date) {
   return `
     <article class="week-col" data-date="${dateKey(date)}">
       <header class="${headCls}">${DAY_NAMES[di]} ${date.getDate()}</header>
-      <div class="week-col-labels"><span>PLAN</span><span class="lbl-do">DO</span></div>
+      <div class="week-col-labels"><span class="lbl-spacer"></span><span class="lbl-plan">PLAN</span></div>
       <div class="week-col-rows">${rows}</div>
       <footer class="week-col-see">
         <span class="lbl-see">SEE</span>
@@ -274,10 +269,8 @@ function bindDayEvents(col, date) {
 
   col.querySelectorAll(".week-hour-row").forEach((row) => {
     const i = Number(row.dataset.index);
-    const hour = row.dataset.hour;
     const check = row.querySelector(".plan-check");
     const input = row.querySelector(".plan-input");
-    const doEl = row.querySelector(".cell-do");
 
     check.addEventListener("change", () => {
       data.plan[i].done = check.checked;
@@ -294,29 +287,6 @@ function bindDayEvents(col, date) {
       data.plan[i].highlight = !data.plan[i].highlight;
       row.classList.toggle("plan-highlight", data.plan[i].highlight);
       persist();
-    });
-
-    doEl.addEventListener("dblclick", (e) => {
-      if (e.target.classList.contains("do-cell")) return;
-      const tones = ["none", "active", "sleep"];
-      const cur = data.do[hour].tone || "none";
-      const next = tones[(tones.indexOf(cur) + 1) % tones.length];
-      data.do[hour].tone = next;
-      doEl.classList.remove("tone-active", "tone-sleep");
-      if (next !== "none") doEl.classList.add(`tone-${next}`);
-      persist();
-    });
-
-    row.querySelectorAll(".do-cell").forEach((cell) => {
-      const ci = Number(cell.dataset.col);
-      cell.addEventListener("input", () => {
-        data.do[hour].cells[ci] = cell.value;
-        if (cell.value.trim() && data.do[hour].tone === "none") {
-          data.do[hour].tone = "active";
-          doEl.classList.add("tone-active");
-        }
-        persist();
-      });
     });
   });
 

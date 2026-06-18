@@ -17,7 +17,7 @@
   --row-h: 24px;
   --time-w: 26px;
   --sidebar-w: 200px;
-  --col-min: 136px;
+  --col-min: 108px;
   --font: "Helvetica Neue", Helvetica, Arial, "Noto Sans KR", sans-serif;
 }
 
@@ -191,7 +191,7 @@ body {
 
 .week-col-labels {
   display: grid;
-  grid-template-columns: 1fr var(--time-w) 1.15fr;
+  grid-template-columns: var(--time-w) 1fr;
   padding: 3px 4px;
   border-bottom: 1px solid var(--line);
   font-size: 0.48rem;
@@ -200,16 +200,13 @@ body {
   flex-shrink: 0;
 }
 
-.week-col-labels .lbl-do { grid-column: 3; text-align: right; }
-
-.week-col-rows {
-  flex: 1;
-  overflow-y: auto;
+.week-col-labels .lbl-plan {
+  padding-left: 4px;
 }
 
 .week-hour-row {
   display: grid;
-  grid-template-columns: 1fr var(--time-w) 1.15fr;
+  grid-template-columns: var(--time-w) 1fr;
   min-height: var(--row-h);
   border-bottom: 1px dotted var(--line);
 }
@@ -281,7 +278,6 @@ body {
   align-items: center;
   justify-content: flex-start;
   padding-top: 1px;
-  border-left: 1px solid var(--line);
   border-right: 1px solid var(--line);
   line-height: 1;
 }
@@ -289,46 +285,9 @@ body {
 .time-num { font-size: 0.52rem; }
 .time-period { font-size: 0.4rem; color: var(--text-muted); min-height: 0.4rem; }
 
-.cell-do {
-  display: grid;
-  grid-template-columns: repeat(4, 1fr);
-  min-width: 0;
-  background-image: repeating-linear-gradient(
-    to right,
-    transparent,
-    transparent calc(25% - 0.25px),
-    var(--line) calc(25% - 0.25px),
-    var(--line) calc(25% + 0.25px)
-  );
-}
-
-.cell-do.tone-active { background-color: var(--active); }
-.cell-do.tone-sleep { background-color: var(--sleep); }
-
-.do-cell {
-  border: none;
-  background: transparent;
-  font-family: inherit;
-  font-size: 0.58rem;
-  color: var(--text);
-  outline: none;
-  min-width: 10px;
-  width: 100%;
-  height: var(--row-h);
-  padding: 0 2px;
-  cursor: text;
-  position: relative;
-  z-index: 1;
-}
-
-.do-cell:hover {
-  background: rgba(255, 255, 255, 0.6);
-}
-
-.do-cell:focus {
-  background: rgba(33, 150, 243, 0.1);
-  outline: 1px solid #90caf9;
-  outline-offset: -1px;
+.week-col-rows {
+  flex: 1;
+  overflow-y: auto;
 }
 
 .week-col-see {
