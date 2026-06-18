@@ -32,4 +32,12 @@ WORDPRESS_ARCHIVE_CARD_ENDPOINT=
 AIOSEO_ENABLED=true
 ```
 
-API 키가 없어도 로컬 템플릿 초안 생성과 검수 UI는 동작합니다.
+## 배포
+
+GitHub Pages에 자동 배포됩니다.
+
+- **배포 URL:** https://meeoak.github.io/memo-pad/
+- `main` 브랜치에 push하면 GitHub Actions가 빌드 후 `gh-pages` 브랜치로 배포합니다.
+- 저장소 Settings → Pages에서 Source가 `Deploy from a branch` / `gh-pages` / `/ (root)`인지 확인하세요.
+
+OpenAI API와 WordPress REST API 서버 연동이 필요하면 Vercel에 배포하고 환경변수를 설정하세요.

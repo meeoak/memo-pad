@@ -70,38 +70,29 @@ export default function Home() {
     setInput((current) => ({ ...current, [key]: value }));
   }
 
+  const isStaticHost = process.env.NEXT_PUBLIC_STATIC_HOST === "true";
+
   async function handleGenerate() {
     setIsGenerating(true);
     setPublishStatus("");
     try {
-      const response = await fetch("/api/generate", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(input),
-      });
-      const data = (await response.json()) as { bodyHtml?: string; error?: string };
-      setBodyHtml(data.bodyHtml || draftFromInput(input));
-      if (data.error) setPublishStatus(data.error);
-    } catch {
       setBodyHtml(draftFromInput(input));
-      setPublishStatus("OpenAI 호출에 실패해 로컬 템플릿 초안을 생성했습니다.");
+      setPublishStatus(
+        isStaticHost
+          ? "배포본에서는 로컬 경험 중심 템플릿 초안을 생성합니다."
+          : "로컬 경험 중심 템플릿 초안을 생성했습니다. OpenAI 서버 연동은 Vercel 배포 시 추가할 수 있습니다.",
+      );
     } finally {
       setIsGenerating(false);
     }
   }
 
   async function handleWordPressDraft() {
-    setPublishStatus("WordPress 연결 확인 중...");
     try {
-      const response = await fetch("/api/wordpress", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action: "draft", package: publishPackage }),
-      });
-      const data = (await response.json()) as { message?: string; error?: string };
-      setPublishStatus(data.message || data.error || "WordPress 응답을 확인할 수 없습니다.");
+      await navigator.clipboard.writeText(JSON.stringify(publishPackage, null, 2));
+      setPublishStatus("WordPress 발행 패키지 JSON을 클립보드에 복사했습니다.");
     } catch {
-      setPublishStatus("WordPress REST API 설정 또는 네트워크를 확인하세요.");
+      setPublishStatus("클립보드 복사에 실패했습니다. 발행 패키지 영역에서 직접 복사하세요.");
     }
   }
 
@@ -471,7 +462,7 @@ function PublishPackageCard({
         </ul>
       </div>
       <button type="button" onClick={onWordPressDraft} className="mt-4 w-full rounded-2xl bg-moss px-4 py-3 text-sm font-semibold text-white hover:bg-[#53634d]">
-        WordPress 초안으로 보내기
+        발행 패키지 JSON 복사
       </button>
       {publishStatus ? <p className="mt-3 rounded-2xl bg-paper p-3 text-sm text-stone-600">{publishStatus}</p> : null}
       <details className="mt-4">
