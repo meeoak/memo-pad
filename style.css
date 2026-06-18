@@ -19,6 +19,7 @@
   --row-h: 24px;
   --time-w: 26px;
   --col-min: 108px;
+  --habit-name-w: 118px;
   --font: "Helvetica Neue", Helvetica, Arial, "Noto Sans KR", sans-serif;
 }
 
@@ -263,12 +264,26 @@ body {
 
 .weekly-top {
   display: grid;
-  grid-template-columns: 1fr 1fr minmax(240px, 1.35fr) minmax(160px, 200px);
-  gap: 16px;
-  padding: 10px 12px;
+  grid-template-columns: 1fr 1fr minmax(300px, 1.55fr) minmax(168px, 200px);
+  gap: 10px;
+  padding: 12px;
   border-bottom: 1px solid var(--line);
-  align-items: start;
+  align-items: stretch;
+  background: #f8f8f9;
 }
+
+.top-panel {
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 10px 12px;
+  background: var(--sheet);
+  min-width: 0;
+}
+
+.top-panel-work { border-top: 3px solid #90caf9; }
+.top-panel-life { border-top: 3px solid #a5d6a7; }
+.top-panel-habit { border-top: 3px solid #fff59d; }
+.top-panel-cal { border-top: 3px solid #bdbdbd; }
 
 .tag-section {
   min-width: 0;
@@ -277,8 +292,10 @@ body {
 .tag-head {
   font-size: 0.72rem;
   font-weight: 600;
-  margin-bottom: 6px;
+  margin-bottom: 8px;
   color: var(--text);
+  padding-bottom: 4px;
+  border-bottom: 1px solid var(--line);
 }
 
 .tag-list { list-style: none; display: flex; flex-direction: column; gap: 4px; }
@@ -312,10 +329,14 @@ body {
   min-width: 0;
 }
 
+.habit-section .tag-head {
+  margin-bottom: 8px;
+}
+
 .habit-grid-head {
   display: grid;
-  grid-template-columns: 72px 1fr;
-  gap: 4px;
+  grid-template-columns: var(--habit-name-w) 1fr;
+  gap: 6px;
   margin-bottom: 4px;
   padding-right: 2px;
 }
@@ -347,8 +368,8 @@ body {
 
 .habit-row {
   display: grid;
-  grid-template-columns: 72px 1fr;
-  gap: 4px;
+  grid-template-columns: var(--habit-name-w) 1fr;
+  gap: 6px;
   align-items: center;
 }
 
@@ -357,8 +378,8 @@ body {
   border-bottom: 1px solid var(--line);
   background: transparent;
   font-family: inherit;
-  font-size: 0.68rem;
-  padding: 2px 0;
+  font-size: 0.72rem;
+  padding: 2px 4px 2px 0;
   outline: none;
   min-width: 0;
   width: 100%;
@@ -387,9 +408,9 @@ body {
 .habit-day.sun { background: rgba(248, 212, 220, 0.35); border-radius: 2px; }
 
 .top-cal {
-  justify-self: end;
+  justify-self: stretch;
   width: 100%;
-  max-width: 224px;
+  max-width: none;
 }
 
 .mini-month-title {
