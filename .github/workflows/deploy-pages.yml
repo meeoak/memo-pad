@@ -3,6 +3,8 @@ name: Deploy to GitHub Pages
 on:
   push:
     branches: [main]
+    paths-ignore:
+      - "content-desk/**"
   workflow_dispatch:
 
 permissions:
@@ -34,9 +36,15 @@ jobs:
           GITHUB_PAGES: "true"
           NEXT_PUBLIC_STATIC_HOST: "true"
 
-      - name: Deploy
-        uses: peaceiris/actions-gh-pages@v4
+      - name: Publish static files
+        run: |
+          rm -rf content-desk
+          cp -r out content-desk
+
+      - name: Commit deployment
+        uses: EndBug/add-and-commit@v9
         with:
-          github_token: ${{ secrets.GITHUB_TOKEN }}
-          publish_dir: ./out
-          cname_file: false
+          add: content-desk
+          message: "chore: update content-desk deployment [skip ci]"
+          author_name: github-actions[bot]
+          author_email: 41898282+github-actions[bot]@users.noreply.github.com

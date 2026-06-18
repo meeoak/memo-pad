@@ -36,8 +36,8 @@ AIOSEO_ENABLED=true
 
 GitHub Pages에 자동 배포됩니다.
 
-- **배포 URL:** https://meeoak.github.io/memo-pad/
-- `main` 브랜치에 push하면 GitHub Actions가 빌드 후 `gh-pages` 브랜치로 배포합니다.
-- 저장소 Settings → Pages에서 Source가 `Deploy from a branch` / `gh-pages` / `/ (root)`인지 확인하세요.
+- **배포 URL:** https://meeoak.github.io/memo-pad/content-desk/
+- `main` 브랜치에 push하면 GitHub Actions가 빌드 후 `content-desk/` 폴더를 갱신합니다.
+- 기존 플래너 앱은 저장소 루트의 `index.html`에서 그대로 제공됩니다.
 
 OpenAI API와 WordPress REST API 서버 연동이 필요하면 Vercel에 배포하고 환경변수를 설정하세요.

@@ -1,5 +1,6 @@
 /** @type {import('next').NextConfig} */
 const isGitHubPages = process.env.GITHUB_PAGES === "true";
+const basePath = isGitHubPages ? "/memo-pad/content-desk" : "";
 
 const nextConfig = {
   output: "export",
@@ -8,8 +9,8 @@ const nextConfig = {
   },
   trailingSlash: true,
   ...(isGitHubPages && {
-    basePath: "/memo-pad",
-    assetPrefix: "/memo-pad/",
+    basePath,
+    assetPrefix: `${basePath}/`,
   }),
 };
 
