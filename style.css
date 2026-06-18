@@ -16,7 +16,6 @@
   --accent: #222222;
   --row-h: 24px;
   --time-w: 26px;
-  --sidebar-w: 200px;
   --col-min: 108px;
   --font: "Helvetica Neue", Helvetica, Arial, "Noto Sans KR", sans-serif;
 }
@@ -87,17 +86,22 @@ body {
 
 /* Weekly layout */
 .weekly-layout {
-  display: grid;
-  grid-template-columns: var(--sidebar-w) 1fr;
+  display: flex;
+  flex-direction: column;
   min-height: 680px;
 }
 
-.weekly-sidebar {
-  border-right: 1px solid var(--line);
-  padding: 14px 10px;
-  display: flex;
-  flex-direction: column;
-  gap: 14px;
+.weekly-top {
+  display: grid;
+  grid-template-columns: 1fr 1fr minmax(130px, 168px);
+  gap: 16px;
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--line);
+  align-items: start;
+}
+
+.tag-section {
+  min-width: 0;
 }
 
 .tag-head {
@@ -134,7 +138,11 @@ body {
   min-width: 0;
 }
 
-.sidebar-cal { margin-top: auto; }
+.top-cal {
+  justify-self: end;
+  width: 100%;
+  max-width: 168px;
+}
 
 .mini-month-title {
   font-size: 0.58rem;
@@ -163,6 +171,7 @@ body {
 .weekly-days {
   display: grid;
   grid-template-columns: repeat(7, 1fr);
+  flex: 1;
   min-width: 0;
   overflow-x: auto;
 }
@@ -371,25 +380,32 @@ body {
 }
 
 /* Responsive */
-@media (max-width: 1100px) {
-  .weekly-layout { grid-template-columns: 1fr; }
-  .weekly-sidebar {
-    border-right: none;
-    border-bottom: 1px solid var(--line);
-    flex-direction: row;
-    flex-wrap: wrap;
-    gap: 10px;
+@media (max-width: 900px) {
+  .weekly-top {
+    grid-template-columns: 1fr 1fr;
   }
-  .sidebar-cal { width: 100%; margin-top: 0; }
-  .weekly-days {
-    grid-template-columns: repeat(7, minmax(var(--col-min), 1fr));
-    overflow-x: auto;
+
+  .top-cal {
+    grid-column: 1 / -1;
+    justify-self: start;
+    max-width: 200px;
   }
 }
 
 @media (max-width: 600px) {
+  .weekly-top {
+    grid-template-columns: 1fr;
+  }
+
+  .top-cal {
+    max-width: 100%;
+  }
+
   .toolbar { justify-content: center; }
   .toolbar-center { margin-left: 0; }
   .current-label { width: 100%; text-align: center; }
+  .weekly-days {
+    grid-template-columns: repeat(7, minmax(var(--col-min), 1fr));
+  }
   :root { --row-h: 22px; }
 }

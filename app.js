@@ -2,8 +2,8 @@ const STORAGE_KEY = "planner-v2";
 const DAY_NAMES = ["SUN", "MON", "TUE", "WED", "THU", "FRI", "SAT"];
 const MONTH_ABBR = ["JAN", "FEB", "MAR", "APR", "MAY", "JUN", "JUL", "AUG", "SEP", "OCT", "NOV", "DEC"];
 const DOW_MINI = ["M", "T", "W", "T", "F", "S", "S"];
-const WORK_ROWS = 7;
-const LIFE_ROWS = 6;
+const WORK_ROWS = 5;
+const LIFE_ROWS = 5;
 
 let state = {
   currentDate: startOfDay(new Date()),
@@ -140,12 +140,22 @@ function getDayData(date) {
   return state.data.days[key];
 }
 
+function normalizeTagList(list, length) {
+  return Array.from({ length }, (_, i) => {
+    const item = list?.[i];
+    return item ? { text: item.text || "", done: !!item.done } : { text: "", done: false };
+  });
+}
+
 function getWeekData(date) {
   const key = weekKey(date);
   if (!state.data.weeks[key]) {
     state.data.weeks[key] = { work: emptyWork(), life: emptyLife(), note: "" };
   }
-  return state.data.weeks[key];
+  const week = state.data.weeks[key];
+  week.work = normalizeTagList(week.work, WORK_ROWS);
+  week.life = normalizeTagList(week.life, LIFE_ROWS);
+  return week;
 }
 
 function addDays(date, n) {
