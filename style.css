@@ -95,7 +95,7 @@ body {
 
 .weekly-top {
   display: grid;
-  grid-template-columns: 1fr 1fr minmax(130px, 168px);
+  grid-template-columns: 1fr 1fr minmax(180px, 224px);
   gap: 16px;
   padding: 10px 12px;
   border-bottom: 1px solid var(--line);
@@ -143,31 +143,66 @@ body {
 .top-cal {
   justify-self: end;
   width: 100%;
-  max-width: 168px;
+  max-width: 224px;
 }
 
 .mini-month-title {
-  font-size: 0.58rem;
+  font-size: 0.72rem;
   letter-spacing: 0.08em;
   color: var(--text-muted);
-  margin-bottom: 4px;
+  margin-bottom: 6px;
 }
 
 .mini-month-grid {
   display: grid;
   grid-template-columns: repeat(7, 1fr);
-  gap: 1px;
-  font-size: 0.52rem;
+  gap: 2px;
+  font-size: 0.68rem;
   text-align: center;
 }
 
-.mini-month-grid .wd { color: var(--text-muted); }
+.mini-month-grid .wd {
+  color: var(--text-muted);
+  padding-bottom: 2px;
+  font-size: 0.62rem;
+}
+
 .mini-month-grid .wd.sun { color: var(--sun-text); }
-.mini-month-grid .d { color: var(--text); padding: 1px 0; cursor: default; }
+
+.mini-month-grid .d {
+  color: var(--text);
+  padding: 4px 0;
+  line-height: 1.1;
+  border-radius: 3px;
+  cursor: default;
+}
+
 .mini-month-grid .d.sun { color: var(--sun-text); }
 .mini-month-grid .d.other { color: #ccc; }
-.mini-month-grid .d.current-week { background: rgba(255, 100, 100, 0.12); border-radius: 2px; }
+
+.mini-month-grid .d.current-week {
+  background: rgba(255, 100, 100, 0.14);
+}
+
+.mini-month-grid .d.is-today {
+  font-weight: 700;
+  color: var(--accent);
+  box-shadow: inset 0 0 0 1.5px var(--accent);
+}
+
+.mini-month-grid .d.is-today.sun {
+  color: var(--sun-text);
+}
+
+.mini-month-grid .d.is-today.current-week {
+  background: rgba(255, 100, 100, 0.14);
+}
+
 .mini-month-grid .d[data-date] { cursor: pointer; }
+
+.mini-month-grid .d[data-date]:hover {
+  background: rgba(0, 0, 0, 0.04);
+}
 
 /* 7 day columns */
 .weekly-days {
@@ -418,7 +453,7 @@ body {
   .top-cal {
     grid-column: 1 / -1;
     justify-self: start;
-    max-width: 200px;
+    max-width: 240px;
   }
 }
 

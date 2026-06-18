@@ -472,6 +472,7 @@ function buildMiniMonth(year, month, opts = {}) {
     if (other) cls.push("other");
     if (dt.getDay() === 0 && !other) cls.push("sun");
     if (opts.highlightWeek?.has(dateKey(dt)) && !other) cls.push("current-week");
+    if (isToday(dt)) cls.push("is-today");
     const clickable = opts.onClick && !other ? `data-date="${dateKey(dt)}" role="button" tabindex="0"` : "";
     return `<span class="${cls.join(" ")}" ${clickable}>${day}</span>`;
   }).join("");
