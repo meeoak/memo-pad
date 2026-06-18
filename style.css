@@ -19,11 +19,57 @@
   --row-h: 24px;
   --time-w: 26px;
   --col-min: 108px;
-  --habit-name-w: 118px;
+  --habit-name-w: 148px;
+  --time-bg: #f0f0f0;
+  --top-bg: #f8f8f9;
   --font: "Helvetica Neue", Helvetica, Arial, "Noto Sans KR", sans-serif;
 }
 
+html[data-theme="pastel"] {
+  --bg: #fff8f0;
+  --sheet: #fffdf9;
+  --line: #ecd9c8;
+  --line-dark: #d4bda8;
+  --text: #4a3728;
+  --text-muted: #9a7b66;
+  --sat: #e3f2fd;
+  --sat-text: #3a7a96;
+  --sun: #fce4ec;
+  --sun-text: #c44;
+  --active: #ffe8a3;
+  --defer-tomorrow: #f8bbd0;
+  --done-bg: #c8e6c9;
+  --accent: #5d4037;
+  --time-bg: #f5ebe0;
+  --top-bg: #fff3e6;
+}
+
+html[data-theme="dark"] {
+  --bg: #1a1a1a;
+  --sheet: #242424;
+  --line: #3a3a3a;
+  --line-dark: #4a4a4a;
+  --text: #e8e8e8;
+  --text-muted: #9a9a9a;
+  --sat: #1e3a47;
+  --sat-text: #8ecae6;
+  --sun: #4a2c35;
+  --sun-text: #f8a5b8;
+  --active: #5d4a1f;
+  --defer-tomorrow: #6b3a3a;
+  --done-bg: #1e3a5f;
+  --accent: #e0e0e0;
+  color-scheme: dark;
+  --time-bg: #2e2e2e;
+  --top-bg: #1f1f1f;
+}
+
 html { font-size: 13px; }
+
+html[data-theme="minimal"],
+html:not([data-theme]) {
+  color-scheme: light;
+}
 
 body {
   font-family: var(--font);
@@ -59,7 +105,36 @@ body {
   color: var(--text-muted);
 }
 
-.toolbar-center { display: flex; gap: 4px; margin-left: auto; }
+.toolbar-center { display: flex; gap: 4px; }
+
+.toolbar-right {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-left: auto;
+}
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  border: 0;
+}
+
+.theme-select {
+  border: 1px solid var(--line);
+  background: var(--sheet);
+  color: var(--text);
+  font-family: inherit;
+  font-size: 0.68rem;
+  padding: 5px 8px;
+  border-radius: 3px;
+  cursor: pointer;
+}
 
 .nav-btn, .today-btn {
   border: 1px solid var(--line);
@@ -73,7 +148,7 @@ body {
 .nav-btn { width: 30px; height: 30px; font-size: 1.1rem; line-height: 1; }
 .today-btn { padding: 5px 12px; font-size: 0.78rem; }
 
-.nav-btn:hover, .today-btn:hover { background: #f9f9f9; }
+.nav-btn:hover, .today-btn:hover { background: var(--bg); }
 
 .current-label {
   font-size: 0.78rem;
@@ -123,14 +198,29 @@ body {
 }
 
 .carry-btn:hover {
-  background: #f9f9f9;
+  background: var(--bg);
   color: var(--text);
 }
 
 .save-status {
-  font-size: 0.65rem;
+  font-size: 0.68rem;
   color: var(--text-muted);
-  min-width: 2.5em;
+  white-space: nowrap;
+  min-width: 4.5em;
+  text-align: right;
+}
+
+.save-status-just {
+  color: #2e7d32;
+  font-weight: 600;
+}
+
+html[data-theme="dark"] .save-status-just {
+  color: #81c784;
+}
+
+.save-status-saved {
+  color: var(--text-muted);
 }
 
 .notif-btn {
@@ -145,7 +235,7 @@ body {
   padding: 0;
 }
 
-.notif-btn:hover { background: #f9f9f9; }
+.notif-btn:hover { background: var(--bg); }
 
 .notif-dialog {
   border: 1px solid var(--line);
@@ -264,12 +354,12 @@ body {
 
 .weekly-top {
   display: grid;
-  grid-template-columns: 1fr 1fr minmax(300px, 1.55fr) minmax(168px, 200px);
+  grid-template-columns: 1fr 1fr minmax(320px, 1.6fr) minmax(168px, 200px);
   gap: 10px;
   padding: 12px;
   border-bottom: 1px solid var(--line);
   align-items: stretch;
-  background: #f8f8f9;
+  background: var(--top-bg);
 }
 
 .top-panel {
@@ -618,6 +708,38 @@ body {
   line-height: 8px;
   color: transparent;
   cursor: pointer;
+  position: relative;
+}
+
+.plan-check[title]:hover::after,
+.defer-btn[title]:hover::after {
+  content: attr(title);
+  position: absolute;
+  bottom: calc(100% + 4px);
+  left: 50%;
+  transform: translateX(-50%);
+  background: var(--accent);
+  color: var(--sheet);
+  font-size: 0.58rem;
+  line-height: 1.2;
+  padding: 3px 6px;
+  border-radius: 3px;
+  white-space: nowrap;
+  pointer-events: none;
+  z-index: 5;
+}
+
+.defer-btn {
+  flex: 1;
+  border: none;
+  background: transparent;
+  padding: 0;
+  font-family: inherit;
+  font-size: 0.42rem;
+  line-height: 1;
+  color: var(--text-muted);
+  cursor: pointer;
+  position: relative;
 }
 
 .plan-check.is-done {
@@ -642,18 +764,6 @@ body {
 .plan-defer.has-plan {
   opacity: 1;
   pointer-events: auto;
-}
-
-.defer-btn {
-  flex: 1;
-  border: none;
-  background: transparent;
-  padding: 0;
-  font-family: inherit;
-  font-size: 0.42rem;
-  line-height: 1;
-  color: var(--text-muted);
-  cursor: pointer;
 }
 
 .defer-btn + .defer-btn {
@@ -722,7 +832,7 @@ body {
 }
 
 .cell-time {
-  background: #f0f0f0;
+  background: var(--time-bg);
   display: flex;
   flex-direction: column;
   align-items: center;

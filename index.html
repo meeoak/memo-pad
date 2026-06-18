@@ -10,7 +10,7 @@
   <link rel="manifest" href="manifest.json">
   <link rel="icon" href="icons/icon.svg" type="image/svg+xml">
   <link rel="apple-touch-icon" href="icons/icon.svg">
-  <link rel="stylesheet" href="style.css?v=18">
+  <link rel="stylesheet" href="style.css?v=19">
 </head>
 <body>
   <div class="app">
@@ -29,7 +29,17 @@
       <button type="button" class="carry-btn" id="btnCarryToday" title="오늘 미완료 항목을 내일로">오늘 → 내일</button>
       <button type="button" class="carry-btn" id="btnCarryWeek" title="이번 주 미완료를 다음 주로">주 → 다음주</button>
       <button type="button" class="notif-btn" id="btnNotif" title="알림 설정" aria-label="알림 설정">🔔</button>
-      <span class="save-status" id="saveStatus" aria-live="polite"></span>
+      <div class="toolbar-right">
+        <label class="theme-select-wrap">
+          <span class="sr-only">테마</span>
+          <select id="themeSelect" class="theme-select" title="테마 선택">
+            <option value="minimal">미니멀</option>
+            <option value="pastel">파스텔</option>
+            <option value="dark">다크</option>
+          </select>
+        </label>
+        <span class="save-status save-status-saved" id="saveStatus" aria-live="polite">저장됨</span>
+      </div>
     </header>
 
     <dialog class="notif-dialog" id="notifDialog">
@@ -94,7 +104,7 @@
       </div>
     </main>
   </div>
-  <script src="app.js?v=18"></script>
-  <script src="notifications.js?v=18"></script>
+  <script src="app.js?v=19"></script>
+  <script src="notifications.js?v=19"></script>
 </body>
 </html>

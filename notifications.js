@@ -96,8 +96,9 @@ function isNowAtTime(time) {
 
 function getSlotDateTime(plannerDate, index) {
   const slot = notifDeps.getHourSlots()[index];
+  const startHour = notifDeps.PLAN_START_HOUR ?? 4;
   const dt = new Date(plannerDate);
-  if (slot.hour24 < 3) dt.setDate(dt.getDate() + 1);
+  if (slot.hour24 < startHour) dt.setDate(dt.getDate() + 1);
   dt.setHours(slot.hour24, 0, 0, 0);
   return dt;
 }

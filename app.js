@@ -5,6 +5,9 @@ const DOW_MINI = ["M", "T", "W", "T", "F", "S", "S"];
 const WORK_ROWS = 5;
 const LIFE_ROWS = 5;
 const HABIT_ROWS = 5;
+const PLAN_START_HOUR = 4;
+const PLAN_SLOT_COUNT = 21;
+const THEME_KEY = "planner-theme";
 
 let state = {
   currentDate: startOfDay(new Date()),
@@ -31,6 +34,7 @@ const els = {
   btnCarryWeek: document.getElementById("btnCarryWeek"),
   deferredPanel: document.getElementById("deferredPanel"),
   deferredList: document.getElementById("deferredList"),
+  themeSelect: document.getElementById("themeSelect"),
 };
 
 function startOfDay(date) {
@@ -113,9 +117,13 @@ function saveData() {
 
 function showSaveStatus() {
   if (!els.saveStatus) return;
-  els.saveStatus.textContent = "저장됨";
-  clearTimeout(showSaveStatus.timer);
-  showSaveStatus.timer = setTimeout(() => { els.saveStatus.textContent = ""; }, 1500);
+  els.saveStatus.textContent = "방금 저장됨";
+  els.saveStatus.className = "save-status save-status-just";
+  clearTimeout(showSaveStatus.settleTimer);
+  showSaveStatus.settleTimer = setTimeout(() => {
+    els.saveStatus.textContent = "저장됨";
+    els.saveStatus.className = "save-status save-status-saved";
+  }, 2000);
 }
 
 function getWeekProgress(weekDays) {
@@ -223,22 +231,32 @@ function carryWeekIncompleteToNextWeek(weekDays) {
 }
 
 function getHourSlots() {
-  const slots = [];
-  for (let i = 0; i < 24; i++) {
-    const hour24 = (3 + i) % 24;
-    slots.push(formatHourDisplay(hour24, i));
-  }
-  return slots;
+  return Array.from({ length: PLAN_SLOT_COUNT }, (_, i) => {
+    const hour24 = (PLAN_START_HOUR + i) % 24;
+    return formatHourDisplay(hour24);
+  });
 }
 
-function formatHourDisplay(hour24, index) {
+function formatHourDisplay(hour24) {
   const num = hour24 % 12 || 12;
-  let period = "";
-  let showPeriod = false;
-  if (index === 0) { period = "am"; showPeriod = true; }
-  else if (index === 9) { period = "pm"; showPeriod = true; }
-  else if (index === 21) { period = "am"; showPeriod = true; }
+  const showPeriod = hour24 === PLAN_START_HOUR || hour24 === 12 || hour24 === 0;
+  const period = hour24 === 12 ? "pm" : "am";
   return { key: String(hour24), num, period, showPeriod, hour24 };
+}
+
+function oldPlanIndexForHour(hour24) {
+  return (hour24 - 3 + 24) % 24;
+}
+
+function migratePlanArray(plan) {
+  const slots = getHourSlots();
+  if (plan.length === slots.length) return plan.map(normalizePlanItem);
+
+  if (plan.length === 24) {
+    return slots.map((s) => normalizePlanItem(plan[oldPlanIndexForHour(s.hour24)]));
+  }
+
+  return Array.from({ length: slots.length }, (_, i) => normalizePlanItem(plan[i]));
 }
 
 function emptyDayData() {
@@ -276,7 +294,7 @@ function normalizeHabits(list) {
 function getDayData(date) {
   const key = dateKey(date);
   if (!state.data.days[key]) state.data.days[key] = emptyDayData();
-  state.data.days[key].plan = state.data.days[key].plan.map(normalizePlanItem);
+  state.data.days[key].plan = migratePlanArray(state.data.days[key].plan);
   return state.data.days[key];
 }
 
@@ -384,9 +402,9 @@ function buildWeekColumnHTML(date) {
         <div class="cell-plan">
           <button type="button" class="plan-check${plan.done ? " is-done" : ""}" aria-label="완료" title="완료">✓</button>
           <input type="text" class="plan-input" value="${escapeAttr(plan.text)}" title="더블클릭: 강조">
-          <div class="plan-defer${plan.text?.trim() ? " has-plan" : ""}" title="→ 내일 · ↓ 미루기">
-            <button type="button" class="defer-btn defer-tomorrow" aria-label="내일 같은 시간">→</button>
-            <button type="button" class="defer-btn defer-later" aria-label="한 시간 미루기">↓</button>
+          <div class="plan-defer${plan.text?.trim() ? " has-plan" : ""}">
+            <button type="button" class="defer-btn defer-tomorrow" aria-label="내일로 이동" title="내일로 이동">→</button>
+            <button type="button" class="defer-btn defer-later" aria-label="한 시간 미루기" title="한 시간 미루기">↓</button>
           </div>
         </div>
       </div>`;
@@ -444,6 +462,21 @@ function renderWeekly() {
   updateLabel();
 }
 
+function bindEnterToNextRow(container, inputSelector) {
+  container.querySelectorAll(inputSelector).forEach((input) => {
+    input.addEventListener("keydown", (e) => {
+      if (e.key !== "Enter" || e.shiftKey || e.altKey) return;
+      e.preventDefault();
+      const row = input.closest("li");
+      const nextInput = row?.nextElementSibling?.querySelector(inputSelector);
+      if (nextInput) {
+        nextInput.focus();
+        if (nextInput.select) nextInput.select();
+      }
+    });
+  });
+}
+
 function renderTagList(container, items, type) {
   container.innerHTML = items.map((item, i) => `
     <li class="tag-item">
@@ -455,6 +488,7 @@ function renderTagList(container, items, type) {
     inp.addEventListener("change", onTagChange);
     inp.addEventListener("input", onTagChange);
   });
+  bindEnterToNextRow(container, 'input[type="text"]');
 }
 
 function onTagChange(e) {
@@ -512,6 +546,8 @@ function renderHabitTracker(weekDays, habits) {
       persist();
     });
   });
+
+  bindEnterToNextRow(els.habitTracker.querySelector(".habit-list"), ".habit-name");
 
   els.habitTracker.querySelectorAll(".habit-days input[type=checkbox]").forEach((cb) => {
     cb.addEventListener("change", () => {
@@ -943,6 +979,26 @@ els.btnCarryWeek.addEventListener("click", () => {
   else alert("넘길 미완료 항목이 없거나 다음 주 칸이 부족합니다.");
 });
 
+function applyTheme(theme) {
+  document.documentElement.setAttribute("data-theme", theme);
+  const meta = document.querySelector('meta[name="theme-color"]');
+  if (meta) meta.content = theme === "dark" ? "#1a1a1a" : theme === "pastel" ? "#fff8f0" : "#f4f4f5";
+  localStorage.setItem(THEME_KEY, theme);
+  if (els.themeSelect) els.themeSelect.value = theme;
+}
+
+function initTheme() {
+  const theme = localStorage.getItem(THEME_KEY) || "minimal";
+  applyTheme(theme);
+  els.themeSelect?.addEventListener("change", (e) => applyTheme(e.target.value));
+}
+
+initTheme();
 renderWeekly();
 
-window.__plannerDeps = { getDayData, getHourSlots, dateKey, startOfDay };
+if (els.saveStatus) {
+  els.saveStatus.textContent = "저장됨";
+  els.saveStatus.className = "save-status save-status-saved";
+}
+
+window.__plannerDeps = { getDayData, getHourSlots, dateKey, startOfDay, PLAN_START_HOUR };
