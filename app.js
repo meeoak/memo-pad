@@ -597,6 +597,7 @@ function renderTagList(container, items, type) {
         list[i].style = style;
       },
       getText: () => inp.value,
+      getLabel: () => `${type === "work" ? "#WORK" : "#LIFE"} · ${inp.value.trim() || `행 ${i + 1}`}`,
     });
   });
   bindEnterToNextRow(container, 'input[type="text"]');
@@ -661,6 +662,7 @@ function renderHabitTracker(weekDays, habits) {
         getWeekData(state.currentDate).habits[hi].style = style;
       },
       getText: () => inp.value,
+      getLabel: () => `습관 · ${inp.value.trim() || `행 ${hi + 1}`}`,
     });
   });
 
@@ -968,6 +970,11 @@ function bindDayEvents(col, date) {
         getDayData(date).plan[i].style = style;
       },
       getText: () => input.value,
+      getLabel: () => {
+        const slot = getHourSlots()[i];
+        const period = slot.showPeriod ? ` ${slot.period}` : "";
+        return `PLAN · ${DAY_NAMES[date.getDay()]} ${slot.num}${period}`;
+      },
     });
 
     input.addEventListener("dblclick", () => {
@@ -1011,6 +1018,12 @@ function bindDayEvents(col, date) {
     syncActions();
   });
 
+  const seeLabels = {
+    missed: "SEE · 오늘 못한 것",
+    grateful: "SEE · 감사한 일",
+    summary: "SEE · 오늘의 하루",
+  };
+
   const bindSee = (sel, field) => {
     const el = col.querySelector(sel);
     el.addEventListener("input", () => {
@@ -1023,6 +1036,7 @@ function bindDayEvents(col, date) {
         getDayData(date).see[field].style = style;
       },
       getText: () => el.value,
+      getLabel: () => seeLabels[field],
     });
   };
   bindSee(".see-missed", "missed");
