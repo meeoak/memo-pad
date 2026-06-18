@@ -4,6 +4,7 @@ const MONTH_ABBR = ["JAN", "FEB", "MAR", "APR", "MAY", "JUN", "JUL", "AUG", "SEP
 const DOW_MINI = ["M", "T", "W", "T", "F", "S", "S"];
 const WORK_ROWS = 5;
 const LIFE_ROWS = 5;
+const HABIT_ROWS = 5;
 
 let state = {
   currentDate: startOfDay(new Date()),
@@ -20,6 +21,7 @@ const els = {
   currentLabel: document.getElementById("currentLabel"),
   workList: document.getElementById("workList"),
   lifeList: document.getElementById("lifeList"),
+  habitTracker: document.getElementById("habitTracker"),
   sidebarCal: document.getElementById("sidebarCal"),
   weeklyColumns: document.getElementById("weeklyColumns"),
   progressLabel: document.getElementById("progressLabel"),
@@ -69,7 +71,7 @@ function migrateFromV1() {
     for (const [key, val] of Object.entries(parsed)) {
       if (key === "weeks") {
         for (const [wk, note] of Object.entries(val)) {
-          if (typeof note === "string") store.weeks[wk] = { work: emptyWork(), life: emptyLife(), note };
+          if (typeof note === "string") store.weeks[wk] = { work: emptyWork(), life: emptyLife(), habits: emptyHabits(), note };
         }
       } else if (val && val.plan) {
         store.days[key] = {
@@ -256,6 +258,21 @@ function emptyLife() {
   return Array.from({ length: LIFE_ROWS }, () => ({ text: "", done: false }));
 }
 
+function emptyHabits() {
+  return Array.from({ length: HABIT_ROWS }, () => ({
+    text: "",
+    days: Array(7).fill(false),
+  }));
+}
+
+function normalizeHabits(list) {
+  return Array.from({ length: HABIT_ROWS }, (_, i) => {
+    const item = list?.[i];
+    const days = Array.from({ length: 7 }, (_, d) => !!item?.days?.[d]);
+    return { text: item?.text || "", days };
+  });
+}
+
 function getDayData(date) {
   const key = dateKey(date);
   if (!state.data.days[key]) state.data.days[key] = emptyDayData();
@@ -273,11 +290,12 @@ function normalizeTagList(list, length) {
 function getWeekData(date) {
   const key = weekKey(date);
   if (!state.data.weeks[key]) {
-    state.data.weeks[key] = { work: emptyWork(), life: emptyLife(), note: "" };
+    state.data.weeks[key] = { work: emptyWork(), life: emptyLife(), habits: emptyHabits(), note: "" };
   }
   const week = state.data.weeks[key];
   week.work = normalizeTagList(week.work, WORK_ROWS);
   week.life = normalizeTagList(week.life, LIFE_ROWS);
+  week.habits = normalizeHabits(week.habits);
   return week;
 }
 
@@ -402,6 +420,7 @@ function renderWeekly() {
 
   renderTagList(els.workList, week.work, "work");
   renderTagList(els.lifeList, week.life, "life");
+  renderHabitTracker(weekDays, week.habits);
   renderSidebarCal(weekDays);
   renderDeferredPanel(weekDays);
 
@@ -447,6 +466,62 @@ function onTagChange(e) {
   else list[i].text = e.target.value;
   persist();
   updateWeekProgress();
+}
+
+function renderHabitTracker(weekDays, habits) {
+  if (!els.habitTracker) return;
+
+  const dayHeaders = weekDays.map((date, di) => {
+    const cls = ["habit-wd"];
+    if (di === 5) cls.push("sat");
+    if (di === 6) cls.push("sun");
+    if (isToday(date)) cls.push("today");
+    return `<span class="${cls.join(" ")}" title="${date.getMonth() + 1}/${date.getDate()}">${DOW_MINI[di]}</span>`;
+  }).join("");
+
+  const rows = habits.map((habit, hi) => {
+    const checks = habit.days.map((done, di) => {
+      const cls = ["habit-day"];
+      if (di === 5) cls.push("sat");
+      if (di === 6) cls.push("sun");
+      if (isToday(weekDays[di])) cls.push("today");
+      return `<label class="${cls.join(" ")}"><input type="checkbox" data-habit="${hi}" data-day="${di}" ${done ? "checked" : ""}></label>`;
+    }).join("");
+
+    return `
+      <li class="habit-row">
+        <input type="text" class="habit-name" data-habit="${hi}" value="${escapeAttr(habit.text)}" placeholder="습관 ${hi + 1}">
+        <div class="habit-days">${checks}</div>
+      </li>`;
+  }).join("");
+
+  els.habitTracker.innerHTML = `
+    <h3 class="tag-head">습관 트래커</h3>
+    <div class="habit-grid">
+      <div class="habit-grid-head">
+        <span class="habit-label-spacer"></span>
+        <div class="habit-days-head">${dayHeaders}</div>
+      </div>
+      <ul class="habit-list">${rows}</ul>
+    </div>`;
+
+  els.habitTracker.querySelectorAll(".habit-name").forEach((inp) => {
+    inp.addEventListener("input", () => {
+      const week = getWeekData(state.currentDate);
+      week.habits[Number(inp.dataset.habit)].text = inp.value;
+      persist();
+    });
+  });
+
+  els.habitTracker.querySelectorAll(".habit-days input[type=checkbox]").forEach((cb) => {
+    cb.addEventListener("change", () => {
+      const week = getWeekData(state.currentDate);
+      const hi = Number(cb.dataset.habit);
+      const di = Number(cb.dataset.day);
+      week.habits[hi].days[di] = cb.checked;
+      persist();
+    });
+  });
 }
 
 function emptyPlanItem() {
@@ -869,3 +944,5 @@ els.btnCarryWeek.addEventListener("click", () => {
 });
 
 renderWeekly();
+
+window.__plannerDeps = { getDayData, getHourSlots, dateKey, startOfDay };

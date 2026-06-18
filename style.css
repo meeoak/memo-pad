@@ -132,6 +132,121 @@ body {
   min-width: 2.5em;
 }
 
+.notif-btn {
+  border: 1px solid var(--line);
+  background: var(--sheet);
+  width: 30px;
+  height: 30px;
+  border-radius: 3px;
+  cursor: pointer;
+  font-size: 0.9rem;
+  line-height: 1;
+  padding: 0;
+}
+
+.notif-btn:hover { background: #f9f9f9; }
+
+.notif-dialog {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 0;
+  max-width: 420px;
+  width: calc(100% - 24px);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.12);
+}
+
+.notif-dialog::backdrop {
+  background: rgba(0, 0, 0, 0.35);
+}
+
+.notif-dialog-inner {
+  padding: 16px;
+  margin: 0;
+}
+
+.notif-dialog-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 10px;
+}
+
+.notif-dialog-head h2 {
+  font-size: 0.95rem;
+  font-weight: 600;
+}
+
+.notif-close {
+  border: none;
+  background: transparent;
+  font-size: 1.2rem;
+  line-height: 1;
+  cursor: pointer;
+  color: var(--text-muted);
+  padding: 4px 8px;
+}
+
+.notif-status {
+  font-size: 0.72rem;
+  color: var(--text-muted);
+  margin-bottom: 12px;
+}
+
+.notif-group {
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 10px 12px;
+  margin-bottom: 10px;
+}
+
+.notif-group legend {
+  font-size: 0.68rem;
+  color: var(--text-muted);
+  padding: 0 4px;
+}
+
+.notif-group-future {
+  opacity: 0.85;
+}
+
+.notif-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  font-size: 0.75rem;
+  margin-bottom: 8px;
+}
+
+.notif-row:last-child { margin-bottom: 0; }
+
+.notif-row-master {
+  font-weight: 600;
+  margin-bottom: 12px;
+}
+
+.notif-row input[type="time"] {
+  border: 1px solid var(--line);
+  border-radius: 3px;
+  font-family: inherit;
+  font-size: 0.72rem;
+  padding: 3px 6px;
+}
+
+.notif-hint {
+  font-size: 0.68rem;
+  color: var(--text-muted);
+  line-height: 1.45;
+  margin-bottom: 8px;
+}
+
+.notif-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-top: 4px;
+}
+
 .sheet {
   background: var(--sheet);
   border: 1px solid var(--line);
@@ -148,7 +263,7 @@ body {
 
 .weekly-top {
   display: grid;
-  grid-template-columns: 1fr 1fr minmax(180px, 224px);
+  grid-template-columns: 1fr 1fr minmax(240px, 1.35fr) minmax(160px, 200px);
   gap: 16px;
   padding: 10px 12px;
   border-bottom: 1px solid var(--line);
@@ -192,6 +307,84 @@ body {
   outline: none;
   min-width: 0;
 }
+
+.habit-section {
+  min-width: 0;
+}
+
+.habit-grid-head {
+  display: grid;
+  grid-template-columns: 72px 1fr;
+  gap: 4px;
+  margin-bottom: 4px;
+  padding-right: 2px;
+}
+
+.habit-days-head,
+.habit-days {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 2px;
+  text-align: center;
+}
+
+.habit-wd {
+  font-size: 0.58rem;
+  color: var(--text-muted);
+  letter-spacing: 0.02em;
+}
+
+.habit-wd.sat { color: var(--sat-text); }
+.habit-wd.sun { color: var(--sun-text); }
+.habit-wd.today { font-weight: 700; color: var(--accent); }
+
+.habit-list {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.habit-row {
+  display: grid;
+  grid-template-columns: 72px 1fr;
+  gap: 4px;
+  align-items: center;
+}
+
+.habit-name {
+  border: none;
+  border-bottom: 1px solid var(--line);
+  background: transparent;
+  font-family: inherit;
+  font-size: 0.68rem;
+  padding: 2px 0;
+  outline: none;
+  min-width: 0;
+  width: 100%;
+}
+
+.habit-day {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 18px;
+}
+
+.habit-day input[type="checkbox"] {
+  width: 10px;
+  height: 10px;
+  accent-color: var(--accent);
+  cursor: pointer;
+}
+
+.habit-day.today {
+  background: rgba(0, 0, 0, 0.04);
+  border-radius: 2px;
+}
+
+.habit-day.sat { background: rgba(212, 234, 244, 0.35); border-radius: 2px; }
+.habit-day.sun { background: rgba(248, 212, 220, 0.35); border-radius: 2px; }
 
 .top-cal {
   justify-self: end;
@@ -590,9 +783,28 @@ body {
 }
 
 /* Responsive */
+@media (max-width: 1100px) {
+  .weekly-top {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .habit-section {
+    grid-column: 1 / -1;
+  }
+
+  .top-cal {
+    justify-self: start;
+    max-width: 240px;
+  }
+}
+
 @media (max-width: 900px) {
   .weekly-top {
     grid-template-columns: 1fr 1fr;
+  }
+
+  .habit-section {
+    grid-column: 1 / -1;
   }
 
   .top-cal {

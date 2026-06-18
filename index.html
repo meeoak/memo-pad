@@ -3,8 +3,14 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="theme-color" content="#222222">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-title" content="플래너">
   <title>플래너</title>
-  <link rel="stylesheet" href="style.css?v=15">
+  <link rel="manifest" href="manifest.json">
+  <link rel="icon" href="icons/icon.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="icons/icon.svg">
+  <link rel="stylesheet" href="style.css?v=17">
 </head>
 <body>
   <div class="app">
@@ -22,8 +28,49 @@
       </div>
       <button type="button" class="carry-btn" id="btnCarryToday" title="오늘 미완료 항목을 내일로">오늘 → 내일</button>
       <button type="button" class="carry-btn" id="btnCarryWeek" title="이번 주 미완료를 다음 주로">주 → 다음주</button>
+      <button type="button" class="notif-btn" id="btnNotif" title="알림 설정" aria-label="알림 설정">🔔</button>
       <span class="save-status" id="saveStatus" aria-live="polite"></span>
     </header>
+
+    <dialog class="notif-dialog" id="notifDialog">
+      <form method="dialog" class="notif-dialog-inner">
+        <header class="notif-dialog-head">
+          <h2>알림 설정</h2>
+          <button type="button" class="notif-close" id="btnNotifClose" aria-label="닫기">×</button>
+        </header>
+        <p class="notif-status" id="notifStatus"></p>
+        <label class="notif-row notif-row-master">
+          <input type="checkbox" id="notifEnabled"> 알림 켜기 (페이지 열림 시)
+        </label>
+        <fieldset class="notif-group">
+          <legend>1차 · 로컬 알림</legend>
+          <label class="notif-row">
+            <span><input type="checkbox" id="notifMorningEnabled"> 오늘 계획 세우기</span>
+            <input type="time" id="notifMorningTime" value="08:00">
+          </label>
+          <label class="notif-row">
+            <span><input type="checkbox" id="notifEveningEnabled"> 저녁 회고 (SEE)</span>
+            <input type="time" id="notifEveningTime" value="21:00">
+          </label>
+          <label class="notif-row">
+            <input type="checkbox" id="notifBlockEnabled"> 시간 블록 시작 10분 전
+          </label>
+        </fieldset>
+        <fieldset class="notif-group">
+          <legend>2차 · PWA</legend>
+          <p class="notif-hint" id="pwaInstallHint"></p>
+          <button type="button" class="carry-btn" id="btnInstallPwa" hidden>홈 화면에 설치</button>
+        </fieldset>
+        <fieldset class="notif-group notif-group-future">
+          <legend>3차 · 푸시 (준비 중)</legend>
+          <p class="notif-hint">앱이 닫혀 있어도 알림을 받으려면 서버(Web Push · VAPID)가 필요합니다. service-worker에 훅만 준비해 두었습니다.</p>
+        </fieldset>
+        <footer class="notif-actions">
+          <button type="button" class="carry-btn" id="btnNotifEnable">알림 권한 허용</button>
+          <button type="button" class="carry-btn" id="btnNotifTest">테스트 알림</button>
+        </footer>
+      </form>
+    </dialog>
 
     <main class="main-area">
       <div class="weekly-layout sheet">
@@ -36,6 +83,7 @@
             <h3 class="tag-head">#LIFE</h3>
             <ul class="tag-list" id="lifeList"></ul>
           </div>
+          <div class="habit-section" id="habitTracker"></div>
           <div class="top-cal" id="sidebarCal"></div>
           <div class="deferred-panel" id="deferredPanel" hidden>
             <h3 class="tag-head">미룬 업무</h3>
@@ -46,6 +94,7 @@
       </div>
     </main>
   </div>
-  <script src="app.js?v=15"></script>
+  <script src="app.js?v=17"></script>
+  <script src="notifications.js?v=17"></script>
 </body>
 </html>
