@@ -452,12 +452,20 @@ html[data-theme="dark"] .save-status-just {
   margin-bottom: 8px;
 }
 
-.habit-grid-head {
+.habit-head {
   display: grid;
   grid-template-columns: var(--habit-name-w) 1fr;
   gap: 6px;
-  margin-bottom: 4px;
-  padding-right: 2px;
+  align-items: end;
+  margin-bottom: 8px;
+  padding-bottom: 4px;
+  border-bottom: 1px solid var(--line);
+}
+
+.habit-tag-head {
+  margin-bottom: 0;
+  padding-bottom: 0;
+  border-bottom: none;
 }
 
 .habit-days-head,

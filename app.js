@@ -294,6 +294,10 @@ function normalizeTagList(list) {
   return items;
 }
 
+function isHabitEmpty(habit) {
+  return !habit.text.trim() && habit.days.every((d) => !d);
+}
+
 function normalizeHabits(list) {
   const items = Array.isArray(list)
     ? list.map((item) => ({
@@ -301,6 +305,10 @@ function normalizeHabits(list) {
         days: Array.from({ length: 7 }, (_, d) => !!item?.days?.[d]),
       }))
     : [];
+  const hasContent = items.some((habit) => !isHabitEmpty(habit));
+  if (hasContent) {
+    while (items.length > 0 && isHabitEmpty(items[0])) items.shift();
+  }
   while (items.length < HABIT_ROWS_MIN) {
     items.push({ text: "", days: Array(7).fill(false) });
   }
@@ -572,15 +580,12 @@ function renderHabitTracker(weekDays, habits) {
   }).join("");
 
   els.habitTracker.innerHTML = `
-    <h3 class="tag-head">습관 트래커</h3>
-    <div class="habit-grid">
-      <div class="habit-grid-head">
-        <span class="habit-label-spacer"></span>
-        <div class="habit-days-head">${dayHeaders}</div>
-      </div>
-      <ul class="habit-list">${rows}</ul>
-      <button type="button" class="tag-add-btn habit-add-btn" id="btnAddHabit">+ 행 추가</button>
-    </div>`;
+    <div class="habit-head">
+      <h3 class="tag-head habit-tag-head">습관 트래커</h3>
+      <div class="habit-days-head">${dayHeaders}</div>
+    </div>
+    <ul class="habit-list">${rows}</ul>
+    <button type="button" class="tag-add-btn habit-add-btn" id="btnAddHabit">+ 행 추가</button>`;
 
   els.habitTracker.querySelectorAll(".habit-name").forEach((inp) => {
     inp.addEventListener("input", () => {
