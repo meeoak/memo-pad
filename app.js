@@ -85,9 +85,9 @@ function migrateFromV1() {
           plan: val.plan.map((p) => ({ text: p.text || "", done: !!p.done, highlight: false, defer: null })),
           do: migrateDo(val.do),
           see: {
-            missed: "",
-            grateful: "",
-            summary: typeof val.see === "string" ? val.see : "",
+            missed: { text: "", style: null },
+            grateful: { text: "", style: null },
+            summary: { text: typeof val.see === "string" ? val.see : "", style: null },
           },
         };
       }
@@ -267,30 +267,69 @@ function emptyDayData() {
   return {
     plan: slots.map(() => emptyPlanItem()),
     do: Object.fromEntries(slots.map((s) => [s.key, { cells: ["", "", "", ""], tone: "none" }])),
-    see: { missed: "", grateful: "", summary: "" },
+    see: emptySee(),
+  };
+}
+
+function emptySee() {
+  return {
+    missed: emptyMemoField(),
+    grateful: emptyMemoField(),
+    summary: emptyMemoField(),
+  };
+}
+
+function emptyMemoField() {
+  return { text: "", style: null };
+}
+
+function normalizeMemoField(val) {
+  if (typeof val === "string") return { text: val, style: null };
+  if (!val || typeof val !== "object") return emptyMemoField();
+  return {
+    text: val.text || "",
+    style: val.style ? MemoStyle.normalizeStyle(val.style) : null,
+  };
+}
+
+function normalizeSee(see) {
+  if (!see || typeof see !== "object") return emptySee();
+  return {
+    missed: normalizeMemoField(see.missed),
+    grateful: normalizeMemoField(see.grateful),
+    summary: normalizeMemoField(see.summary),
   };
 }
 
 function emptyWork() {
-  return Array.from({ length: TAG_ROWS_MIN }, () => ({ text: "", done: false }));
+  return Array.from({ length: TAG_ROWS_MIN }, () => emptyTagItem());
 }
 
 function emptyLife() {
-  return Array.from({ length: TAG_ROWS_MIN }, () => ({ text: "", done: false }));
+  return Array.from({ length: TAG_ROWS_MIN }, () => emptyTagItem());
+}
+
+function emptyTagItem() {
+  return { text: "", done: false, style: null };
 }
 
 function emptyHabits() {
-  return Array.from({ length: HABIT_ROWS_MIN }, () => ({
-    text: "",
-    days: Array(7).fill(false),
-  }));
+  return Array.from({ length: HABIT_ROWS_MIN }, () => emptyHabitItem());
+}
+
+function emptyHabitItem() {
+  return { text: "", days: Array(7).fill(false), style: null };
 }
 
 function normalizeTagList(list) {
   const items = Array.isArray(list)
-    ? list.map((item) => ({ text: item?.text || "", done: !!item?.done }))
+    ? list.map((item) => ({
+        text: item?.text || "",
+        done: !!item?.done,
+        style: item?.style ? MemoStyle.normalizeStyle(item.style) : null,
+      }))
     : [];
-  while (items.length < TAG_ROWS_MIN) items.push({ text: "", done: false });
+  while (items.length < TAG_ROWS_MIN) items.push(emptyTagItem());
   return items;
 }
 
@@ -303,6 +342,7 @@ function normalizeHabits(list) {
     ? list.map((item) => ({
         text: item?.text || "",
         days: Array.from({ length: 7 }, (_, d) => !!item?.days?.[d]),
+        style: item?.style ? MemoStyle.normalizeStyle(item.style) : null,
       }))
     : [];
   const hasContent = items.some((habit) => !isHabitEmpty(habit));
@@ -310,7 +350,7 @@ function normalizeHabits(list) {
     while (items.length > 0 && isHabitEmpty(items[0])) items.shift();
   }
   while (items.length < HABIT_ROWS_MIN) {
-    items.push({ text: "", days: Array(7).fill(false) });
+    items.push(emptyHabitItem());
   }
   return items;
 }
@@ -319,7 +359,7 @@ function addTagRow(type) {
   const week = getWeekData(state.currentDate);
   const list = type === "work" ? week.work : week.life;
   if (list.length >= TAG_ROWS_MAX) return;
-  list.push({ text: "", done: false });
+  list.push(emptyTagItem());
   saveData();
   if (type === "work") {
     renderTagList(els.workList, week.work, "work");
@@ -334,7 +374,7 @@ function addTagRow(type) {
 function addHabitRow() {
   const week = getWeekData(state.currentDate);
   if (week.habits.length >= HABIT_ROWS_MAX) return;
-  week.habits.push({ text: "", days: Array(7).fill(false) });
+  week.habits.push(emptyHabitItem());
   saveData();
   renderHabitTracker(getWeekDays(state.currentDate), week.habits);
 }
@@ -343,6 +383,7 @@ function getDayData(date) {
   const key = dateKey(date);
   if (!state.data.days[key]) state.data.days[key] = emptyDayData();
   state.data.days[key].plan = migratePlanArray(state.data.days[key].plan);
+  state.data.days[key].see = normalizeSee(state.data.days[key].see);
   return state.data.days[key];
 }
 
@@ -425,6 +466,7 @@ function updateLabel() {
 
 function buildWeekColumnHTML(date) {
   const data = getDayData(date);
+  const see = normalizeSee(data.see);
   const di = date.getDay();
   const slots = getHourSlots();
   const headCls = ["week-col-head", di === 6 ? "sat" : "", di === 0 ? "sun" : "", isToday(date) ? "today" : ""].filter(Boolean).join(" ");
@@ -462,9 +504,9 @@ function buildWeekColumnHTML(date) {
       <footer class="week-col-see">
         <span class="lbl-see">SEE</span>
         <div class="see-fields">
-          <label class="see-field"><span class="see-num">1</span><input type="text" class="see-missed" value="${escapeAttr(data.see.missed || "")}" placeholder="오늘 못한 것"></label>
-          <label class="see-field"><span class="see-num">2</span><input type="text" class="see-grateful" value="${escapeAttr(data.see.grateful || "")}" placeholder="감사한 일"></label>
-          <label class="see-field"><span class="see-num">3</span><input type="text" class="see-summary" value="${escapeAttr(data.see.summary || "")}" placeholder="오늘의 하루"></label>
+          <label class="see-field"><span class="see-num">1</span><input type="text" class="see-missed" value="${escapeAttr(see.missed.text)}" placeholder="오늘 못한 것"></label>
+          <label class="see-field"><span class="see-num">2</span><input type="text" class="see-grateful" value="${escapeAttr(see.grateful.text)}" placeholder="감사한 일"></label>
+          <label class="see-field"><span class="see-num">3</span><input type="text" class="see-summary" value="${escapeAttr(see.summary.text)}" placeholder="오늘의 하루"></label>
         </div>
       </footer>
     </article>`;
@@ -527,6 +569,10 @@ function bindEnterToNextRow(container, inputSelector) {
   });
 }
 
+function bindMemoStyle(input, binding) {
+  MemoStyle.wrapMemoInput(input, binding);
+}
+
 function renderTagList(container, items, type) {
   container.innerHTML = items.map((item, i) => `
     <li class="tag-item">
@@ -535,8 +581,23 @@ function renderTagList(container, items, type) {
     </li>`).join("");
 
   container.querySelectorAll("input").forEach((inp) => {
+    if (inp.type === "checkbox") {
+      inp.addEventListener("change", onTagChange);
+      inp.addEventListener("input", onTagChange);
+      return;
+    }
+    const i = Number(inp.dataset.i);
     inp.addEventListener("change", onTagChange);
     inp.addEventListener("input", onTagChange);
+    bindMemoStyle(inp, {
+      getStyle: () => getWeekData(state.currentDate)[type === "work" ? "work" : "life"][i].style,
+      setStyle: (style) => {
+        const week = getWeekData(state.currentDate);
+        const list = type === "work" ? week.work : week.life;
+        list[i].style = style;
+      },
+      getText: () => inp.value,
+    });
   });
   bindEnterToNextRow(container, 'input[type="text"]');
 }
@@ -588,10 +649,18 @@ function renderHabitTracker(weekDays, habits) {
     <button type="button" class="tag-add-btn habit-add-btn" id="btnAddHabit">+ 행 추가</button>`;
 
   els.habitTracker.querySelectorAll(".habit-name").forEach((inp) => {
+    const hi = Number(inp.dataset.habit);
     inp.addEventListener("input", () => {
       const week = getWeekData(state.currentDate);
-      week.habits[Number(inp.dataset.habit)].text = inp.value;
+      week.habits[hi].text = inp.value;
       persist();
+    });
+    bindMemoStyle(inp, {
+      getStyle: () => getWeekData(state.currentDate).habits[hi].style,
+      setStyle: (style) => {
+        getWeekData(state.currentDate).habits[hi].style = style;
+      },
+      getText: () => inp.value,
     });
   });
 
@@ -615,7 +684,7 @@ function renderHabitTracker(weekDays, habits) {
 }
 
 function emptyPlanItem() {
-  return { text: "", done: false, highlight: false, defer: null, deferFrom: null };
+  return { text: "", done: false, highlight: false, defer: null, deferFrom: null, style: null };
 }
 
 function normalizePlanItem(item) {
@@ -630,6 +699,7 @@ function normalizePlanItem(item) {
     highlight: !!item.highlight,
     defer: item.done ? null : defer,
     deferFrom: item.done || !defer ? null : deferFrom,
+    style: item.style ? MemoStyle.normalizeStyle(item.style) : null,
   };
 }
 
@@ -892,6 +962,14 @@ function bindDayEvents(col, date) {
       renderDeferredPanel(getWeekDays(state.currentDate));
     });
 
+    bindMemoStyle(input, {
+      getStyle: () => getDayData(date).plan[i].style,
+      setStyle: (style) => {
+        getDayData(date).plan[i].style = style;
+      },
+      getText: () => input.value,
+    });
+
     input.addEventListener("dblclick", () => {
       if (data.plan[i].done || data.plan[i].defer) return;
       data.plan[i].highlight = !data.plan[i].highlight;
@@ -936,8 +1014,15 @@ function bindDayEvents(col, date) {
   const bindSee = (sel, field) => {
     const el = col.querySelector(sel);
     el.addEventListener("input", () => {
-      data.see[field] = el.value;
+      data.see[field].text = el.value;
       persist();
+    });
+    bindMemoStyle(el, {
+      getStyle: () => getDayData(date).see[field].style,
+      setStyle: (style) => {
+        getDayData(date).see[field].style = style;
+      },
+      getText: () => el.value,
     });
   };
   bindSee(".see-missed", "missed");
@@ -1049,6 +1134,7 @@ function initTheme() {
 }
 
 initTheme();
+MemoStyle.init({ onPersist: persist });
 renderWeekly();
 
 if (els.saveStatus) {
