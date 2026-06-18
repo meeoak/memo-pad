@@ -2,9 +2,10 @@ const STORAGE_KEY = "planner-v2";
 const DAY_NAMES = ["SUN", "MON", "TUE", "WED", "THU", "FRI", "SAT"];
 const MONTH_ABBR = ["JAN", "FEB", "MAR", "APR", "MAY", "JUN", "JUL", "AUG", "SEP", "OCT", "NOV", "DEC"];
 const DOW_MINI = ["M", "T", "W", "T", "F", "S", "S"];
-const WORK_ROWS = 5;
-const LIFE_ROWS = 5;
-const HABIT_ROWS = 5;
+const TAG_ROWS_MIN = 5;
+const TAG_ROWS_MAX = 12;
+const HABIT_ROWS_MIN = 5;
+const HABIT_ROWS_MAX = 12;
 const PLAN_START_HOUR = 4;
 const PLAN_SLOT_COUNT = 21;
 const THEME_KEY = "planner-theme";
@@ -32,6 +33,8 @@ const els = {
   saveStatus: document.getElementById("saveStatus"),
   btnCarryToday: document.getElementById("btnCarryToday"),
   btnCarryWeek: document.getElementById("btnCarryWeek"),
+  btnAddWork: document.getElementById("btnAddWork"),
+  btnAddLife: document.getElementById("btnAddLife"),
   deferredPanel: document.getElementById("deferredPanel"),
   deferredList: document.getElementById("deferredList"),
   themeSelect: document.getElementById("themeSelect"),
@@ -269,26 +272,63 @@ function emptyDayData() {
 }
 
 function emptyWork() {
-  return Array.from({ length: WORK_ROWS }, () => ({ text: "", done: false }));
+  return Array.from({ length: TAG_ROWS_MIN }, () => ({ text: "", done: false }));
 }
 
 function emptyLife() {
-  return Array.from({ length: LIFE_ROWS }, () => ({ text: "", done: false }));
+  return Array.from({ length: TAG_ROWS_MIN }, () => ({ text: "", done: false }));
 }
 
 function emptyHabits() {
-  return Array.from({ length: HABIT_ROWS }, () => ({
+  return Array.from({ length: HABIT_ROWS_MIN }, () => ({
     text: "",
     days: Array(7).fill(false),
   }));
 }
 
+function normalizeTagList(list) {
+  const items = Array.isArray(list)
+    ? list.map((item) => ({ text: item?.text || "", done: !!item?.done }))
+    : [];
+  while (items.length < TAG_ROWS_MIN) items.push({ text: "", done: false });
+  return items;
+}
+
 function normalizeHabits(list) {
-  return Array.from({ length: HABIT_ROWS }, (_, i) => {
-    const item = list?.[i];
-    const days = Array.from({ length: 7 }, (_, d) => !!item?.days?.[d]);
-    return { text: item?.text || "", days };
-  });
+  const items = Array.isArray(list)
+    ? list.map((item) => ({
+        text: item?.text || "",
+        days: Array.from({ length: 7 }, (_, d) => !!item?.days?.[d]),
+      }))
+    : [];
+  while (items.length < HABIT_ROWS_MIN) {
+    items.push({ text: "", days: Array(7).fill(false) });
+  }
+  return items;
+}
+
+function addTagRow(type) {
+  const week = getWeekData(state.currentDate);
+  const list = type === "work" ? week.work : week.life;
+  if (list.length >= TAG_ROWS_MAX) return;
+  list.push({ text: "", done: false });
+  saveData();
+  if (type === "work") {
+    renderTagList(els.workList, week.work, "work");
+    if (els.btnAddWork) els.btnAddWork.disabled = week.work.length >= TAG_ROWS_MAX;
+  } else {
+    renderTagList(els.lifeList, week.life, "life");
+    if (els.btnAddLife) els.btnAddLife.disabled = week.life.length >= TAG_ROWS_MAX;
+  }
+  updateWeekProgress();
+}
+
+function addHabitRow() {
+  const week = getWeekData(state.currentDate);
+  if (week.habits.length >= HABIT_ROWS_MAX) return;
+  week.habits.push({ text: "", days: Array(7).fill(false) });
+  saveData();
+  renderHabitTracker(getWeekDays(state.currentDate), week.habits);
 }
 
 function getDayData(date) {
@@ -298,21 +338,14 @@ function getDayData(date) {
   return state.data.days[key];
 }
 
-function normalizeTagList(list, length) {
-  return Array.from({ length }, (_, i) => {
-    const item = list?.[i];
-    return item ? { text: item.text || "", done: !!item.done } : { text: "", done: false };
-  });
-}
-
 function getWeekData(date) {
   const key = weekKey(date);
   if (!state.data.weeks[key]) {
     state.data.weeks[key] = { work: emptyWork(), life: emptyLife(), habits: emptyHabits(), note: "" };
   }
   const week = state.data.weeks[key];
-  week.work = normalizeTagList(week.work, WORK_ROWS);
-  week.life = normalizeTagList(week.life, LIFE_ROWS);
+  week.work = normalizeTagList(week.work);
+  week.life = normalizeTagList(week.life);
   week.habits = normalizeHabits(week.habits);
   return week;
 }
@@ -438,6 +471,14 @@ function renderWeekly() {
 
   renderTagList(els.workList, week.work, "work");
   renderTagList(els.lifeList, week.life, "life");
+  if (els.btnAddWork) {
+    els.btnAddWork.disabled = week.work.length >= TAG_ROWS_MAX;
+    els.btnAddWork.onclick = () => addTagRow("work");
+  }
+  if (els.btnAddLife) {
+    els.btnAddLife.disabled = week.life.length >= TAG_ROWS_MAX;
+    els.btnAddLife.onclick = () => addTagRow("life");
+  }
   renderHabitTracker(weekDays, week.habits);
   renderSidebarCal(weekDays);
   renderDeferredPanel(weekDays);
@@ -537,6 +578,7 @@ function renderHabitTracker(weekDays, habits) {
         <div class="habit-days-head">${dayHeaders}</div>
       </div>
       <ul class="habit-list">${rows}</ul>
+      <button type="button" class="tag-add-btn habit-add-btn" id="btnAddHabit">+ 행 추가</button>
     </div>`;
 
   els.habitTracker.querySelectorAll(".habit-name").forEach((inp) => {
@@ -558,6 +600,12 @@ function renderHabitTracker(weekDays, habits) {
       persist();
     });
   });
+
+  const habitAddBtn = els.habitTracker.querySelector(".habit-add-btn");
+  if (habitAddBtn) {
+    habitAddBtn.disabled = habits.length >= HABIT_ROWS_MAX;
+    habitAddBtn.onclick = addHabitRow;
+  }
 }
 
 function emptyPlanItem() {
