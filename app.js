@@ -522,6 +522,18 @@ function bindDayEvents(col, date) {
     });
 
     input.addEventListener("keydown", (e) => {
+      if (e.key === "Enter" && !e.altKey && !e.shiftKey) {
+        e.preventDefault();
+        const nextRow = row.nextElementSibling;
+        const nextInput = nextRow?.classList.contains("week-hour-row")
+          ? nextRow.querySelector(".plan-input")
+          : null;
+        if (nextInput) {
+          nextInput.focus();
+          nextInput.select();
+        }
+        return;
+      }
       if (!input.value.trim()) return;
       if (e.key === "ArrowRight" && e.altKey) {
         e.preventDefault();
