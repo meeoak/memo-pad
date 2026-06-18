@@ -228,30 +228,46 @@ body {
   min-width: 0;
 }
 
-.plan-mark {
+.plan-check {
+  width: 10px;
+  height: 10px;
+  margin-top: 1px;
+  border: 1px solid var(--line-dark);
+  background: var(--sheet);
+  flex-shrink: 0;
+  padding: 0;
+  font-family: inherit;
+  font-size: 0.5rem;
+  line-height: 8px;
+  color: transparent;
+  cursor: pointer;
+}
+
+.plan-check.is-done {
+  color: var(--accent);
+  font-weight: 700;
+}
+
+.plan-defer {
   display: flex;
   flex-direction: column;
-  width: 11px;
+  width: 10px;
   height: calc(var(--row-h) - 2px);
   margin-top: 1px;
   border: 1px solid var(--line-dark);
   background: var(--sheet);
   flex-shrink: 0;
   overflow: hidden;
+  opacity: 0;
+  pointer-events: none;
 }
 
-.plan-mark:not(.has-plan) .mark-tomorrow,
-.plan-mark:not(.has-plan) .mark-later {
-  display: none;
+.plan-defer.has-plan {
+  opacity: 1;
+  pointer-events: auto;
 }
 
-.plan-mark:not(.has-plan) .mark-done {
-  flex: 1;
-  color: transparent;
-  cursor: default;
-}
-
-.mark-btn {
+.defer-btn {
   flex: 1;
   border: none;
   background: transparent;
@@ -263,27 +279,18 @@ body {
   cursor: pointer;
 }
 
-.mark-btn + .mark-btn {
+.defer-btn + .defer-btn {
   border-top: 1px dotted var(--line);
 }
 
-.mark-btn:hover:not(:disabled) {
+.defer-btn:hover:not(:disabled) {
   color: var(--accent);
   background: rgba(0, 0, 0, 0.05);
 }
 
-.mark-btn:disabled {
+.defer-btn:disabled {
   opacity: 0.35;
   cursor: default;
-}
-
-.plan-mark.is-done .mark-done {
-  color: var(--accent);
-  font-weight: 700;
-}
-
-.plan-mark.has-plan.is-done .mark-done {
-  background: rgba(0, 0, 0, 0.04);
 }
 
 .plan-input {
