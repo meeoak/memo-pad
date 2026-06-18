@@ -257,6 +257,55 @@ body {
   background: rgba(0, 0, 0, 0.04);
 }
 
+.deferred-panel {
+  grid-column: 1 / -1;
+  border-top: 1px dotted var(--line);
+  padding-top: 8px;
+}
+
+.deferred-list {
+  list-style: none;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.deferred-item {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: center;
+  font-size: 0.68rem;
+  padding: 5px 10px;
+  border-radius: 4px;
+  cursor: pointer;
+  border: 1px solid var(--line);
+  max-width: 100%;
+}
+
+.deferred-item.defer-later { background: var(--active); }
+.deferred-item.defer-tomorrow { background: var(--defer-tomorrow); }
+
+.deferred-item:hover {
+  filter: brightness(0.97);
+}
+
+.defer-route {
+  color: var(--text-muted);
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+
+.defer-text {
+  color: var(--text);
+  font-weight: 600;
+}
+
+.week-hour-row.flash-focus .cell-plan {
+  outline: 2px solid #64b5f6;
+  outline-offset: -1px;
+}
+
 /* 7 day columns */
 .weekly-days {
   display: grid;

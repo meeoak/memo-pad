@@ -27,6 +27,8 @@ const els = {
   saveStatus: document.getElementById("saveStatus"),
   btnCarryToday: document.getElementById("btnCarryToday"),
   btnCarryWeek: document.getElementById("btnCarryWeek"),
+  deferredPanel: document.getElementById("deferredPanel"),
+  deferredList: document.getElementById("deferredList"),
 };
 
 function startOfDay(date) {
@@ -164,6 +166,7 @@ function carryDayIncompleteToTomorrow(date) {
       done: false,
       highlight: item.highlight,
       defer: "tomorrow",
+      deferFrom: { date: dateKey(date), index: i },
     };
     fromData.plan[i] = emptyPlanItem();
     moved++;
@@ -192,6 +195,7 @@ function carryWeekIncompleteToNextWeek(weekDays) {
         done: false,
         highlight: item.highlight,
         defer: "tomorrow",
+        deferFrom: { date: dateKey(date), index: i },
       };
       fromData.plan[i] = emptyPlanItem();
       moved++;
@@ -399,6 +403,7 @@ function renderWeekly() {
   renderTagList(els.workList, week.work, "work");
   renderTagList(els.lifeList, week.life, "life");
   renderSidebarCal(weekDays);
+  renderDeferredPanel(weekDays);
 
   els.weeklyColumns.innerHTML = visibleDays.map(buildWeekColumnHTML).join("");
 
@@ -445,18 +450,93 @@ function onTagChange(e) {
 }
 
 function emptyPlanItem() {
-  return { text: "", done: false, highlight: false, defer: null };
+  return { text: "", done: false, highlight: false, defer: null, deferFrom: null };
 }
 
 function normalizePlanItem(item) {
   if (!item) return emptyPlanItem();
   const defer = item.defer === "later" || item.defer === "tomorrow" ? item.defer : null;
+  const deferFrom = item.deferFrom?.date && Number.isInteger(item.deferFrom?.index)
+    ? { date: item.deferFrom.date, index: item.deferFrom.index }
+    : null;
   return {
     text: item.text || "",
     done: !!item.done,
     highlight: !!item.highlight,
     defer: item.done ? null : defer,
+    deferFrom: item.done || !defer ? null : deferFrom,
   };
+}
+
+function formatSlotLabel(dateKeyStr, index) {
+  const date = parseDate(dateKeyStr);
+  const slot = getHourSlots()[index];
+  if (!slot) return dateKeyStr;
+  const periodText = slot.showPeriod ? ` ${slot.period}` : "";
+  return `${DAY_NAMES[date.getDay()]} ${date.getDate()} · ${slot.num}${periodText}`;
+}
+
+function collectDeferredTasks(weekDays) {
+  const items = [];
+  for (const date of weekDays) {
+    const key = dateKey(date);
+    getDayData(date).plan.forEach((raw, index) => {
+      const plan = normalizePlanItem(raw);
+      if (!plan.text.trim() || !plan.defer || !plan.deferFrom) return;
+      items.push({
+        text: plan.text,
+        defer: plan.defer,
+        toDate: key,
+        toIndex: index,
+        fromLabel: formatSlotLabel(plan.deferFrom.date, plan.deferFrom.index),
+        toLabel: formatSlotLabel(key, index),
+      });
+    });
+  }
+  return items;
+}
+
+function focusPlanSlot(date, index) {
+  if (isMobileView()) {
+    state.currentDate = startOfDay(date);
+  } else {
+    const weekStart = getWeekStart(state.currentDate);
+    const weekEnd = addDays(weekStart, 6);
+    if (date < weekStart || date > weekEnd) state.currentDate = startOfDay(date);
+  }
+
+  renderWeekly();
+  requestAnimationFrame(() => {
+    const row = document.querySelector(
+      `.week-col[data-date="${dateKey(date)}"] .week-hour-row[data-index="${index}"]`,
+    );
+    row?.scrollIntoView({ block: "center", behavior: "smooth" });
+    row?.classList.add("flash-focus");
+    row?.querySelector(".plan-input")?.focus();
+    setTimeout(() => row?.classList.remove("flash-focus"), 1200);
+  });
+}
+
+function renderDeferredPanel(weekDays) {
+  if (!els.deferredPanel || !els.deferredList) return;
+  const items = collectDeferredTasks(weekDays);
+  els.deferredPanel.hidden = items.length === 0;
+  if (!items.length) {
+    els.deferredList.innerHTML = "";
+    return;
+  }
+
+  els.deferredList.innerHTML = items.map((item) => `
+    <li class="deferred-item defer-${item.defer}" data-date="${item.toDate}" data-index="${item.toIndex}" role="button" tabindex="0">
+      <span class="defer-route">${escapeAttr(item.fromLabel)} → ${escapeAttr(item.toLabel)}</span>
+      <span class="defer-text">${escapeAttr(item.text)}</span>
+    </li>`).join("");
+
+  els.deferredList.querySelectorAll(".deferred-item").forEach((el) => {
+    const go = () => focusPlanSlot(parseDate(el.dataset.date), Number(el.dataset.index));
+    el.addEventListener("click", go);
+    el.addEventListener("keydown", (e) => { if (e.key === "Enter") go(); });
+  });
 }
 
 function planRowClasses(plan) {
@@ -487,7 +567,13 @@ function movePlanItem(fromDate, fromIndex, toDate, toIndex, deferStatus = null) 
 
   const toData = getDayData(toDate);
   const target = toData.plan[toIndex];
-  const moving = { text: item.text, done: false, highlight: item.highlight, defer: deferStatus };
+  const moving = {
+    text: item.text,
+    done: false,
+    highlight: item.highlight,
+    defer: deferStatus,
+    deferFrom: deferStatus ? { date: dateKey(fromDate), index: fromIndex } : null,
+  };
 
   if (target.text.trim()) {
     fromData.plan[fromIndex] = normalizePlanItem(target);
@@ -615,11 +701,15 @@ function bindDayEvents(col, date) {
     check.addEventListener("click", () => {
       if (!input.value.trim()) return;
       data.plan[i].done = !data.plan[i].done;
-      if (data.plan[i].done) data.plan[i].defer = null;
+      if (data.plan[i].done) {
+        data.plan[i].defer = null;
+        data.plan[i].deferFrom = null;
+      }
       check.classList.toggle("is-done", data.plan[i].done);
       syncPlanRowClasses(row, data.plan[i]);
       persist();
       updateWeekProgress();
+      renderDeferredPanel(getWeekDays(state.currentDate));
     });
 
     input.addEventListener("input", () => {
@@ -627,12 +717,14 @@ function bindDayEvents(col, date) {
       if (!input.value.trim()) {
         data.plan[i].done = false;
         data.plan[i].defer = null;
+        data.plan[i].deferFrom = null;
         data.plan[i].highlight = false;
         check.classList.remove("is-done");
       }
       syncPlanRowClasses(row, data.plan[i]);
       syncActions();
       persist();
+      renderDeferredPanel(getWeekDays(state.currentDate));
     });
 
     input.addEventListener("dblclick", () => {

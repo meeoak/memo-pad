@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>플래너</title>
-  <link rel="stylesheet" href="style.css?v=14">
+  <link rel="stylesheet" href="style.css?v=15">
 </head>
 <body>
   <div class="app">
@@ -37,11 +37,15 @@
             <ul class="tag-list" id="lifeList"></ul>
           </div>
           <div class="top-cal" id="sidebarCal"></div>
+          <div class="deferred-panel" id="deferredPanel" hidden>
+            <h3 class="tag-head">미룬 업무</h3>
+            <ul class="deferred-list" id="deferredList"></ul>
+          </div>
         </header>
         <div class="weekly-days" id="weeklyColumns"></div>
       </div>
     </main>
   </div>
-  <script src="app.js?v=14"></script>
+  <script src="app.js?v=15"></script>
 </body>
 </html>
