@@ -219,63 +219,62 @@ body {
   min-width: 0;
 }
 
-.plan-actions {
+.plan-mark {
   display: flex;
-  align-items: center;
-  gap: 1px;
-  flex-shrink: 0;
-}
-
-.plan-check-wrap { display: flex; flex-shrink: 0; }
-
-.plan-act {
-  border: none;
-  background: transparent;
-  color: var(--text-muted);
-  font-family: inherit;
-  font-size: 0.55rem;
-  line-height: 1;
-  width: 10px;
-  height: var(--row-h);
-  padding: 0;
-  cursor: pointer;
-  opacity: 0;
-  flex-shrink: 0;
-}
-
-.week-hour-row.has-plan:hover .plan-act,
-.week-hour-row.has-plan:focus-within .plan-act {
-  opacity: 1;
-}
-
-.plan-act:hover:not(:disabled) {
-  color: var(--accent);
-  background: rgba(0, 0, 0, 0.04);
-}
-
-.plan-act:disabled {
-  cursor: default;
-  opacity: 0 !important;
-}
-
-.plan-check {
-  appearance: none;
-  width: 8px;
-  height: 8px;
+  flex-direction: column;
+  width: 11px;
+  height: calc(var(--row-h) - 2px);
+  margin-top: 1px;
   border: 1px solid var(--line-dark);
   background: var(--sheet);
-  cursor: pointer;
-  position: relative;
   flex-shrink: 0;
+  overflow: hidden;
 }
 
-.plan-check:checked::after {
-  content: "✓";
-  position: absolute;
-  inset: -3px 0 0 0;
-  font-size: 0.5rem;
-  line-height: 8px;
-  text-align: center;
+.plan-mark:not(.has-plan) .mark-tomorrow,
+.plan-mark:not(.has-plan) .mark-later {
+  display: none;
+}
+
+.plan-mark:not(.has-plan) .mark-done {
+  flex: 1;
+  color: transparent;
+  cursor: default;
+}
+
+.mark-btn {
+  flex: 1;
+  border: none;
+  background: transparent;
+  padding: 0;
+  font-family: inherit;
+  font-size: 0.42rem;
+  line-height: 1;
+  color: var(--text-muted);
+  cursor: pointer;
+}
+
+.mark-btn + .mark-btn {
+  border-top: 1px dotted var(--line);
+}
+
+.mark-btn:hover:not(:disabled) {
+  color: var(--accent);
+  background: rgba(0, 0, 0, 0.05);
+}
+
+.mark-btn:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+
+.plan-mark.is-done .mark-done {
+  color: var(--accent);
+  font-weight: 700;
+}
+
+.plan-mark.has-plan.is-done .mark-done {
+  background: rgba(0, 0, 0, 0.04);
 }
 
 .plan-input {

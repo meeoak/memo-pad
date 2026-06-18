@@ -202,10 +202,10 @@ function buildWeekColumnHTML(date) {
       <div class="${rowCls}" data-index="${i}" data-hour="${s.key}">
         <div class="cell-time"><span class="time-num">${s.num}</span>${periodHtml}</div>
         <div class="cell-plan">
-          <div class="plan-actions">
-            <label class="plan-check-wrap" title="완료"><input type="checkbox" class="plan-check" ${plan.done ? "checked" : ""}></label>
-            <button type="button" class="plan-act plan-act-tomorrow" title="내일 같은 시간">→</button>
-            <button type="button" class="plan-act plan-act-later" title="한 시간 미루기">↓</button>
+          <div class="plan-mark${plan.done ? " is-done" : ""}${plan.text?.trim() ? " has-plan" : ""}" title="✓ 완료 · → 내일 · ↓ 미루기">
+            <button type="button" class="mark-btn mark-done" aria-label="완료">✓</button>
+            <button type="button" class="mark-btn mark-tomorrow" aria-label="내일 같은 시간">→</button>
+            <button type="button" class="mark-btn mark-later" aria-label="한 시간 미루기">↓</button>
           </div>
           <input type="text" class="plan-input" value="${escapeAttr(plan.text)}" title="더블클릭: 강조">
         </div>
@@ -306,26 +306,35 @@ function bindDayEvents(col, date) {
 
   col.querySelectorAll(".week-hour-row").forEach((row) => {
     const i = Number(row.dataset.index);
-    const check = row.querySelector(".plan-check");
+    const mark = row.querySelector(".plan-mark");
     const input = row.querySelector(".plan-input");
-    const btnTomorrow = row.querySelector(".plan-act-tomorrow");
-    const btnLater = row.querySelector(".plan-act-later");
+    const btnDone = row.querySelector(".mark-done");
+    const btnTomorrow = row.querySelector(".mark-tomorrow");
+    const btnLater = row.querySelector(".mark-later");
 
     const syncActions = () => {
       const hasText = !!input.value.trim();
       row.classList.toggle("has-plan", hasText);
+      mark.classList.toggle("has-plan", hasText);
       btnTomorrow.disabled = !hasText;
       btnLater.disabled = !hasText || i >= getHourSlots().length - 1;
     };
 
-    check.addEventListener("change", () => {
-      data.plan[i].done = check.checked;
-      row.classList.toggle("plan-done", check.checked);
+    btnDone.addEventListener("click", () => {
+      if (!input.value.trim()) return;
+      data.plan[i].done = !data.plan[i].done;
+      mark.classList.toggle("is-done", data.plan[i].done);
+      row.classList.toggle("plan-done", data.plan[i].done);
       persist();
     });
 
     input.addEventListener("input", () => {
       data.plan[i].text = input.value;
+      if (!input.value.trim()) {
+        data.plan[i].done = false;
+        mark.classList.remove("is-done");
+        row.classList.remove("plan-done");
+      }
       syncActions();
       persist();
     });
