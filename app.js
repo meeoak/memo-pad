@@ -19,6 +19,11 @@ const els = {
   lifeList: document.getElementById("lifeList"),
   sidebarCal: document.getElementById("sidebarCal"),
   weeklyColumns: document.getElementById("weeklyColumns"),
+  progressLabel: document.getElementById("progressLabel"),
+  progressFill: document.getElementById("progressFill"),
+  saveStatus: document.getElementById("saveStatus"),
+  btnCarryToday: document.getElementById("btnCarryToday"),
+  btnCarryWeek: document.getElementById("btnCarryWeek"),
 };
 
 function startOfDay(date) {
@@ -96,6 +101,116 @@ function emptyStore() {
 
 function saveData() {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(state.data));
+  showSaveStatus();
+}
+
+function showSaveStatus() {
+  if (!els.saveStatus) return;
+  els.saveStatus.textContent = "저장됨";
+  clearTimeout(showSaveStatus.timer);
+  showSaveStatus.timer = setTimeout(() => { els.saveStatus.textContent = ""; }, 1500);
+}
+
+function getWeekProgress(weekDays) {
+  let done = 0;
+  let total = 0;
+
+  for (const d of weekDays) {
+    for (const p of getDayData(d).plan) {
+      if (!p.text.trim()) continue;
+      total++;
+      if (p.done) done++;
+    }
+  }
+
+  const week = getWeekData(state.currentDate);
+  for (const item of [...week.work, ...week.life]) {
+    if (!item.text.trim()) continue;
+    total++;
+    if (item.done) done++;
+  }
+
+  return { done, total, percent: total ? Math.round((done / total) * 100) : 0 };
+}
+
+function updateWeekProgress(weekDays = getWeekDays(state.currentDate)) {
+  const { done, total, percent } = getWeekProgress(weekDays);
+  if (els.progressLabel) els.progressLabel.textContent = `${done}/${total} · ${percent}%`;
+  if (els.progressFill) els.progressFill.style.width = `${percent}%`;
+}
+
+function findEmptyPlanSlot(dayData, preferredIndex) {
+  if (!dayData.plan[preferredIndex]?.text.trim()) return preferredIndex;
+  return dayData.plan.findIndex((p) => !p.text.trim());
+}
+
+function carryDayIncompleteToTomorrow(date) {
+  const fromData = getDayData(date);
+  const toData = getDayData(addDays(date, 1));
+  let moved = 0;
+
+  for (let i = 0; i < fromData.plan.length; i++) {
+    const item = normalizePlanItem(fromData.plan[i]);
+    if (!item.text.trim() || item.done) continue;
+
+    const targetIndex = findEmptyPlanSlot(toData, i);
+    if (targetIndex < 0) continue;
+
+    toData.plan[targetIndex] = {
+      text: item.text,
+      done: false,
+      highlight: item.highlight,
+      defer: "tomorrow",
+    };
+    fromData.plan[i] = emptyPlanItem();
+    moved++;
+  }
+
+  if (moved) saveData();
+  return moved;
+}
+
+function carryWeekIncompleteToNextWeek(weekDays) {
+  let moved = 0;
+
+  for (const date of weekDays) {
+    const fromData = getDayData(date);
+    const toData = getDayData(addDays(date, 7));
+
+    for (let i = 0; i < fromData.plan.length; i++) {
+      const item = normalizePlanItem(fromData.plan[i]);
+      if (!item.text.trim() || item.done) continue;
+
+      const targetIndex = findEmptyPlanSlot(toData, i);
+      if (targetIndex < 0) continue;
+
+      toData.plan[targetIndex] = {
+        text: item.text,
+        done: false,
+        highlight: item.highlight,
+        defer: "tomorrow",
+      };
+      fromData.plan[i] = emptyPlanItem();
+      moved++;
+    }
+  }
+
+  const week = getWeekData(state.currentDate);
+  const nextWeek = getWeekData(addDays(weekDays[0], 7));
+  for (const [src, dest] of [[week.work, nextWeek.work], [week.life, nextWeek.life]]) {
+    for (let i = 0; i < src.length; i++) {
+      const item = src[i];
+      if (!item.text.trim() || item.done) continue;
+      const emptyIdx = dest.findIndex((d) => !d.text.trim());
+      if (emptyIdx < 0) continue;
+      dest[emptyIdx] = { text: item.text, done: false };
+      src[i] = { text: "", done: false };
+      moved++;
+    }
+  }
+
+  if (moved) saveData();
+  return moved;
 }
 
 function getHourSlots() {
@@ -225,7 +340,10 @@ function buildWeekColumnHTML(date) {
 
   return `
     <article class="week-col" data-date="${dateKey(date)}">
-      <header class="${headCls}">${DAY_NAMES[di]} ${date.getDate()}</header>
+      <header class="${headCls}">
+        <span class="col-head-label">${DAY_NAMES[di]} ${date.getDate()}</span>
+        <button type="button" class="col-carry-btn" data-carry-date="${dateKey(date)}" title="이 날 미완료 → 내일">→</button>
+      </header>
       <div class="week-col-labels"><span class="lbl-spacer"></span><span class="lbl-plan">PLAN</span></div>
       <div class="week-col-rows">${rows}</div>
       <footer class="week-col-see">
@@ -253,6 +371,15 @@ function renderWeekly() {
     bindDayEvents(col, parseDate(col.dataset.date));
   });
 
+  els.weeklyColumns.querySelectorAll(".col-carry-btn").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const moved = carryDayIncompleteToTomorrow(parseDate(btn.dataset.carryDate));
+      if (moved) renderWeekly();
+      else alert("넘길 미완료 항목이 없거나 내일 칸이 부족합니다.");
+    });
+  });
+
+  updateWeekProgress(weekDays);
   updateLabel();
 }
 
@@ -277,6 +404,7 @@ function onTagChange(e) {
   if (e.target.type === "checkbox") list[i].done = e.target.checked;
   else list[i].text = e.target.value;
   persist();
+  updateWeekProgress();
 }
 
 function emptyPlanItem() {
@@ -370,6 +498,7 @@ function bindDayEvents(col, date) {
       check.classList.toggle("is-done", data.plan[i].done);
       syncPlanRowClasses(row, data.plan[i]);
       persist();
+      updateWeekProgress();
     });
 
     input.addEventListener("input", () => {
@@ -497,6 +626,19 @@ els.btnNext.addEventListener("click", () => {
 els.btnToday.addEventListener("click", () => {
   state.currentDate = startOfDay(new Date());
   renderWeekly();
+});
+
+els.btnCarryToday.addEventListener("click", () => {
+  const moved = carryDayIncompleteToTomorrow(startOfDay(new Date()));
+  if (moved) renderWeekly();
+  else alert("오늘 넘길 미완료 항목이 없거나 내일 칸이 부족합니다.");
+});
+
+els.btnCarryWeek.addEventListener("click", () => {
+  const weekDays = getWeekDays(state.currentDate);
+  const moved = carryWeekIncompleteToNextWeek(weekDays);
+  if (moved) renderWeekly();
+  else alert("넘길 미완료 항목이 없거나 다음 주 칸이 부족합니다.");
 });
 
 renderWeekly();

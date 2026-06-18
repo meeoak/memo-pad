@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>플래너</title>
-  <link rel="stylesheet" href="style.css?v=11">
+  <link rel="stylesheet" href="style.css?v=12">
 </head>
 <body>
   <div class="app">
@@ -16,6 +16,13 @@
         <button type="button" class="nav-btn" id="btnNext" aria-label="다음 주">›</button>
       </div>
       <span class="current-label" id="currentLabel"></span>
+      <div class="week-progress" id="weekProgress">
+        <span class="progress-label" id="progressLabel">0/0 · 0%</span>
+        <div class="progress-bar" aria-hidden="true"><div class="progress-fill" id="progressFill"></div></div>
+      </div>
+      <button type="button" class="carry-btn" id="btnCarryToday" title="오늘 미완료 항목을 내일로">오늘 → 내일</button>
+      <button type="button" class="carry-btn" id="btnCarryWeek" title="이번 주 미완료를 다음 주로">주 → 다음주</button>
+      <span class="save-status" id="saveStatus" aria-live="polite"></span>
     </header>
 
     <main class="main-area">
@@ -35,6 +42,6 @@
       </div>
     </main>
   </div>
-  <script src="app.js?v=11"></script>
+  <script src="app.js?v=12"></script>
 </body>
 </html>
