@@ -504,11 +504,12 @@ function renderWeekly() {
 }
 
 function bindEnterToNextRow(container, inputSelector) {
+  if (!container) return;
   container.querySelectorAll(inputSelector).forEach((input) => {
     input.addEventListener("keydown", (e) => {
       if (e.key !== "Enter" || e.shiftKey || e.altKey) return;
       e.preventDefault();
-      const row = input.closest("li");
+      const row = input.closest("li, .see-field");
       const nextInput = row?.nextElementSibling?.querySelector(inputSelector);
       if (nextInput) {
         nextInput.focus();
@@ -937,6 +938,7 @@ function bindDayEvents(col, date) {
   bindSee(".see-missed", "missed");
   bindSee(".see-grateful", "grateful");
   bindSee(".see-summary", "summary");
+  bindEnterToNextRow(col.querySelector(".see-fields"), "input[type=text]");
 }
 
 function renderSidebarCal(weekDays) {
