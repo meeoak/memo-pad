@@ -63,7 +63,7 @@ function migrateFromV1() {
         }
       } else if (val && val.plan) {
         store.days[key] = {
-          plan: val.plan.map((p) => ({ text: p.text || "", done: !!p.done, highlight: false })),
+          plan: val.plan.map((p) => ({ text: p.text || "", done: !!p.done, highlight: false, defer: null })),
           do: migrateDo(val.do),
           see: {
             missed: "",
@@ -120,7 +120,7 @@ function formatHourDisplay(hour24, index) {
 function emptyDayData() {
   const slots = getHourSlots();
   return {
-    plan: slots.map(() => ({ text: "", done: false, highlight: false })),
+    plan: slots.map(() => emptyPlanItem()),
     do: Object.fromEntries(slots.map((s) => [s.key, { cells: ["", "", "", ""], tone: "none" }])),
     see: { missed: "", grateful: "", summary: "" },
   };
@@ -137,6 +137,7 @@ function emptyLife() {
 function getDayData(date) {
   const key = dateKey(date);
   if (!state.data.days[key]) state.data.days[key] = emptyDayData();
+  state.data.days[key].plan = state.data.days[key].plan.map(normalizePlanItem);
   return state.data.days[key];
 }
 
@@ -204,8 +205,8 @@ function buildWeekColumnHTML(date) {
   const headCls = ["week-col-head", di === 6 ? "sat" : "", di === 0 ? "sun" : "", isToday(date) ? "today" : ""].filter(Boolean).join(" ");
 
   const rows = slots.map((s, i) => {
-    const plan = data.plan[i] || { text: "", done: false, highlight: false };
-    const rowCls = ["week-hour-row", plan.text?.trim() ? "has-plan" : "", plan.done ? "plan-done" : "", plan.highlight ? "plan-highlight" : ""].filter(Boolean).join(" ");
+    const plan = normalizePlanItem(data.plan[i]);
+    const rowCls = planRowClasses(plan);
     const periodHtml = s.showPeriod ? `<span class="time-period">${s.period}</span>` : `<span class="time-period"></span>`;
 
     return `
@@ -279,20 +280,52 @@ function onTagChange(e) {
 }
 
 function emptyPlanItem() {
-  return { text: "", done: false, highlight: false };
+  return { text: "", done: false, highlight: false, defer: null };
 }
 
-function movePlanItem(fromDate, fromIndex, toDate, toIndex) {
+function normalizePlanItem(item) {
+  if (!item) return emptyPlanItem();
+  const defer = item.defer === "later" || item.defer === "tomorrow" ? item.defer : null;
+  return {
+    text: item.text || "",
+    done: !!item.done,
+    highlight: !!item.highlight,
+    defer: item.done ? null : defer,
+  };
+}
+
+function planRowClasses(plan) {
+  const p = normalizePlanItem(plan);
+  return [
+    "week-hour-row",
+    p.text.trim() ? "has-plan" : "",
+    p.done ? "plan-done" : "",
+    !p.done && p.defer === "later" ? "plan-defer-later" : "",
+    !p.done && p.defer === "tomorrow" ? "plan-defer-tomorrow" : "",
+    p.highlight && !p.done && !p.defer ? "plan-highlight" : "",
+  ].filter(Boolean).join(" ");
+}
+
+function syncPlanRowClasses(row, plan) {
+  const p = normalizePlanItem(plan);
+  row.classList.toggle("has-plan", !!p.text.trim());
+  row.classList.toggle("plan-done", p.done);
+  row.classList.toggle("plan-defer-later", !p.done && p.defer === "later");
+  row.classList.toggle("plan-defer-tomorrow", !p.done && p.defer === "tomorrow");
+  row.classList.toggle("plan-highlight", p.highlight && !p.done && !p.defer);
+}
+
+function movePlanItem(fromDate, fromIndex, toDate, toIndex, deferStatus = null) {
   const fromData = getDayData(fromDate);
   const item = fromData.plan[fromIndex];
   if (!item?.text?.trim()) return false;
 
   const toData = getDayData(toDate);
   const target = toData.plan[toIndex];
-  const moving = { text: item.text, done: false, highlight: item.highlight };
+  const moving = { text: item.text, done: false, highlight: item.highlight, defer: deferStatus };
 
   if (target.text.trim()) {
-    fromData.plan[fromIndex] = { text: target.text, done: target.done, highlight: target.highlight };
+    fromData.plan[fromIndex] = normalizePlanItem(target);
   } else {
     fromData.plan[fromIndex] = emptyPlanItem();
   }
@@ -303,12 +336,12 @@ function movePlanItem(fromDate, fromIndex, toDate, toIndex) {
 }
 
 function deferPlanToTomorrow(date, index) {
-  return movePlanItem(date, index, addDays(date, 1), index);
+  return movePlanItem(date, index, addDays(date, 1), index, "tomorrow");
 }
 
 function deferPlanToday(date, index) {
   if (index >= getHourSlots().length - 1) return false;
-  return movePlanItem(date, index, date, index + 1);
+  return movePlanItem(date, index, date, index + 1, "later");
 }
 
 function bindDayEvents(col, date) {
@@ -333,8 +366,9 @@ function bindDayEvents(col, date) {
     check.addEventListener("click", () => {
       if (!input.value.trim()) return;
       data.plan[i].done = !data.plan[i].done;
+      if (data.plan[i].done) data.plan[i].defer = null;
       check.classList.toggle("is-done", data.plan[i].done);
-      row.classList.toggle("plan-done", data.plan[i].done);
+      syncPlanRowClasses(row, data.plan[i]);
       persist();
     });
 
@@ -342,16 +376,19 @@ function bindDayEvents(col, date) {
       data.plan[i].text = input.value;
       if (!input.value.trim()) {
         data.plan[i].done = false;
+        data.plan[i].defer = null;
+        data.plan[i].highlight = false;
         check.classList.remove("is-done");
-        row.classList.remove("plan-done");
       }
+      syncPlanRowClasses(row, data.plan[i]);
       syncActions();
       persist();
     });
 
     input.addEventListener("dblclick", () => {
+      if (data.plan[i].done || data.plan[i].defer) return;
       data.plan[i].highlight = !data.plan[i].highlight;
-      row.classList.toggle("plan-highlight", data.plan[i].highlight);
+      syncPlanRowClasses(row, data.plan[i]);
       persist();
     });
 
