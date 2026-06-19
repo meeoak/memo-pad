@@ -1,43 +1,16 @@
-# Ara Cinta Indonesia Content Desk
+# Ara Cinta Indonesia · WordPress AdSense 블로그 작성기
 
-Next.js 기반의 AdSense 승인 준비용 블로그 글 작성/검수/발행 보조 웹앱입니다. 승인을 보장하지 않고, 고유 경험과 정책 리스크를 발행 전에 점검하는 운영 도구입니다.
+WordPress 블로그 **Ara Cinta Indonesia**용 AdSense 승인 준비 글 작성·검수·발행 보조 웹앱입니다.
 
-## 주요 기능
+## 배포 URL
 
-- 한국어 메모를 인도네시아어 경험 중심 글 초안으로 변환
-- 글 목적별 구조: 제품 리뷰, 한국 여행 정보, 장소 후기, K-Beauty, K-News
-- 원본 경험 점수, 얇은 콘텐츠 위험도, AI 표현 위험도, 정책 위험도 검수
-- 이미지 역할 관리, 크기 경고, alt 자동 생성
-- WordPress 제목, SEO 제목, 메타 설명, slug, 카테고리, 태그, 본문 HTML 패키지 생성
-- WordPress REST API 초안 생성/발행/기존 글 수정, 카테고리/태그 설정, AIOSEO 메타 저장 구조
+**https://meeoak.github.io/memo-pad/content-desk/**
 
-## 실행
+> 저장소 루트(`https://meeoak.github.io/memo-pad/`)는 기존 플래너 앱입니다. 블로그 작성기는 `/content-desk/` 경로를 사용하세요.
 
-```bash
-npm install
-npm run dev
-```
+## 기능
 
-## 환경변수
-
-`.env.example`을 참고해 `.env.local`을 만드세요.
-
-```bash
-OPENAI_API_KEY=
-OPENAI_MODEL=gpt-4o-mini
-WORDPRESS_BASE_URL=https://example.com
-WORDPRESS_USERNAME=
-WORDPRESS_APP_PASSWORD=
-WORDPRESS_ARCHIVE_CARD_ENDPOINT=
-AIOSEO_ENABLED=true
-```
-
-## 배포
-
-GitHub Pages에 자동 배포됩니다.
-
-- **배포 URL:** https://meeoak.github.io/memo-pad/content-desk/
-- `main` 브랜치에 push하면 GitHub Actions가 빌드 후 `content-desk/` 폴더를 갱신합니다.
-- 기존 플래너 앱은 저장소 루트의 `index.html`에서 그대로 제공됩니다.
-
-OpenAI API와 WordPress REST API 서버 연동이 필요하면 Vercel에 배포하고 환경변수를 설정하세요.
+- 한국어 메모 → 인도네시아어 경험 중심 WordPress 글 초안
+- AdSense 검수 점수 (원본 경험, 얇은 콘텐츠, AI 표현, 정책 리스크 등)
+- WordPress 제목, SEO, slug, 카테고리, 태그, 본문 HTML, 아카이브 카드 패키지
+- Vercel 배포 시 OpenAI + WordPress REST API 직접 발행 가능

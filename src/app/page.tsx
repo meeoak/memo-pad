@@ -76,23 +76,50 @@ export default function Home() {
     setIsGenerating(true);
     setPublishStatus("");
     try {
+      if (isStaticHost) {
+        setBodyHtml(draftFromInput(input));
+        setPublishStatus("배포본: 한국어 메모를 인도네시아어 경험 중심 초안으로 변환했습니다.");
+        return;
+      }
+
+      const response = await fetch("/api/generate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(input),
+      });
+      const data = (await response.json()) as { bodyHtml?: string; error?: string };
+      setBodyHtml(data.bodyHtml || draftFromInput(input));
+      setPublishStatus(data.error || "인도네시아어 WordPress 글 초안을 생성했습니다.");
+    } catch {
       setBodyHtml(draftFromInput(input));
-      setPublishStatus(
-        isStaticHost
-          ? "배포본에서는 로컬 경험 중심 템플릿 초안을 생성합니다."
-          : "로컬 경험 중심 템플릿 초안을 생성했습니다. OpenAI 서버 연동은 Vercel 배포 시 추가할 수 있습니다.",
-      );
+      setPublishStatus("서버 연결 실패. 로컬 템플릿 초안을 생성했습니다.");
     } finally {
       setIsGenerating(false);
     }
   }
 
   async function handleWordPressDraft() {
+    if (isStaticHost) {
+      try {
+        await navigator.clipboard.writeText(JSON.stringify(publishPackage, null, 2));
+        setPublishStatus("WordPress 발행 패키지 JSON을 복사했습니다. WP에 붙여넣거나 Vercel 배포 후 직접 발행하세요.");
+      } catch {
+        setPublishStatus("클립보드 복사에 실패했습니다.");
+      }
+      return;
+    }
+
+    setPublishStatus("WordPress에 초안 전송 중...");
     try {
-      await navigator.clipboard.writeText(JSON.stringify(publishPackage, null, 2));
-      setPublishStatus("WordPress 발행 패키지 JSON을 클립보드에 복사했습니다.");
+      const response = await fetch("/api/wordpress", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "draft", package: publishPackage }),
+      });
+      const data = (await response.json()) as { message?: string; error?: string };
+      setPublishStatus(data.message || data.error || "WordPress 응답을 확인할 수 없습니다.");
     } catch {
-      setPublishStatus("클립보드 복사에 실패했습니다. 발행 패키지 영역에서 직접 복사하세요.");
+      setPublishStatus("WordPress REST API 설정을 확인하세요.");
     }
   }
 
@@ -144,12 +171,12 @@ function Header({ score, input }: { score: AdsenseScore; input: ArticleInput }) 
     <header className="rounded-3xl border border-calm bg-white/85 p-5 shadow-soft">
       <div className="flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
         <div>
-          <p className="text-sm font-semibold uppercase tracking-[0.24em] text-clay">Ara Cinta Indonesia</p>
+          <p className="text-sm font-semibold uppercase tracking-[0.24em] text-clay">Ara Cinta Indonesia · WordPress</p>
           <h1 className="mt-2 max-w-4xl text-3xl font-bold tracking-[-0.04em] sm:text-5xl">
-            AdSense 승인 가능성을 높이는 블로그 운영 작업대
+            AdSense 승인용 WordPress 블로그 작성기
           </h1>
           <p className="mt-3 max-w-3xl text-sm leading-6 text-stone-600">
-            고유 경험, 명확한 탐색, 이미지/메타데이터, 정책 리스크를 함께 점검합니다. 승인을 보장하지 않고, 발행 전 품질을 높이는 도구로 설계했습니다.
+            한국어 메모 → 인도네시아어 경험 중심 글 → AdSense 검수 → WordPress 발행 패키지. aracintaindonesia.com 글 패턴(H1, 발행일, 18px 본문, 이미지, 내부 링크)에 맞춥니다.
           </p>
         </div>
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 xl:min-w-[620px]">
@@ -462,7 +489,7 @@ function PublishPackageCard({
         </ul>
       </div>
       <button type="button" onClick={onWordPressDraft} className="mt-4 w-full rounded-2xl bg-moss px-4 py-3 text-sm font-semibold text-white hover:bg-[#53634d]">
-        발행 패키지 JSON 복사
+        WordPress 발행 패키지 내보내기
       </button>
       {publishStatus ? <p className="mt-3 rounded-2xl bg-paper p-3 text-sm text-stone-600">{publishStatus}</p> : null}
       <details className="mt-4">

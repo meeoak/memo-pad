@@ -31,7 +31,9 @@ jobs:
         run: npm ci
 
       - name: Build
-        run: npm run build
+        run: |
+          rm -rf src/app/api
+          npm run build
         env:
           GITHUB_PAGES: "true"
           NEXT_PUBLIC_STATIC_HOST: "true"
