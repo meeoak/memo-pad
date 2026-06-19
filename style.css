@@ -1270,9 +1270,33 @@ html[data-theme="dark"] .habit-day input[type="checkbox"]:checked::after {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  max-width: min(220px, 28vw);
+  max-width: min(180px, 22vw);
   padding: 2px 0;
   flex-shrink: 1;
+}
+
+.memo-clear-btn {
+  flex-shrink: 0;
+  border: 1px solid var(--line);
+  background: var(--sheet);
+  color: var(--text-muted);
+  font-family: inherit;
+  font-size: 0.62rem;
+  padding: 4px 10px;
+  border-radius: var(--radius-pill);
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.memo-clear-btn:hover:not(:disabled) {
+  border-color: var(--line-dark);
+  color: var(--text);
+  background: var(--bg);
+}
+
+.memo-clear-btn:disabled {
+  opacity: 0.4;
+  cursor: default;
 }
 
 .memo-styled:focus {

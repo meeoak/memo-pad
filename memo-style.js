@@ -107,7 +107,11 @@
 
   function applyStyleToInput(input, style) {
     if (!input) return;
-    const s = resolveStyle(style);
+    if (!style) {
+      resetInputStyle(input);
+      return;
+    }
+    const s = normalizeStyle(style);
     const css = styleToCss(s);
     input.style.fontFamily = css.fontFamily;
     input.style.fontSize = css.fontSize;
@@ -118,6 +122,19 @@
     input.style.borderRadius = css.borderRadius || "";
     input.dataset.memoPen = s.pen;
     input.classList.add("memo-styled");
+  }
+
+  function resetInputStyle(input) {
+    if (!input) return;
+    input.style.fontFamily = "";
+    input.style.fontSize = "";
+    input.style.color = "";
+    input.style.fontWeight = "";
+    input.style.textShadow = "";
+    input.style.backgroundColor = "";
+    input.style.borderRadius = "";
+    delete input.dataset.memoPen;
+    input.classList.remove("memo-styled");
   }
 
   function setActiveInput(input) {
@@ -159,6 +176,7 @@
           <select id="memoFontSelect" class="memo-font-select" aria-label="서체"></select>
         </label>
         <span class="memo-bar-preview" id="memoStylePreview">미리보기</span>
+        <button type="button" class="memo-clear-btn" id="memoClearStyle" title="선택한 메모의 꾸미기를 기본으로 되돌립니다">스타일 지우기</button>
       </div>
       <button type="button" class="memo-bar-toggle" id="memoBarToggle" aria-expanded="false">꾸미기</button>`;
 
@@ -220,6 +238,8 @@
       bar.querySelector("#memoBarToggle").setAttribute("aria-expanded", open ? "true" : "false");
     });
 
+    bar.querySelector("#memoClearStyle").addEventListener("click", clearStyle);
+
     currentStyle = loadPref();
     syncBarUi();
     return bar;
@@ -261,6 +281,8 @@
     }
 
     bar.classList.toggle("has-target", !!activeBinding);
+    const clearBtn = bar.querySelector("#memoClearStyle");
+    if (clearBtn) clearBtn.disabled = !activeBinding;
   }
 
   function commitStyle() {
@@ -292,6 +314,15 @@
   function setFont(font) {
     currentStyle = { ...currentStyle, font };
     commitStyle();
+  }
+
+  function clearStyle() {
+    if (!activeBinding?.input) return;
+    activeBinding.setStyle(null);
+    resetInputStyle(activeBinding.input);
+    currentStyle = loadPref();
+    if (onPersist) onPersist();
+    syncBarUi();
   }
 
   function activateBinding(binding) {
