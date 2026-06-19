@@ -483,7 +483,9 @@ function buildWeekColumnHTML(date) {
       <div class="${rowCls}" data-index="${i}" data-hour="${s.key}">
         ${timeCell}
         <div class="cell-plan">
-          <button type="button" class="plan-check${plan.done ? " is-done" : ""}" aria-label="완료" title="완료">✓</button>
+          <label class="plan-check-wrap" title="완료">
+            <input type="checkbox" class="plan-check planner-check" ${plan.done ? "checked" : ""} aria-label="완료">
+          </label>
           <input type="text" class="plan-input" value="${escapeAttr(plan.text)}" title="더블클릭: 강조">
           <div class="plan-defer${plan.text?.trim() ? " has-plan" : ""}">
             <button type="button" class="defer-btn defer-tomorrow" aria-label="내일로 이동" title="내일로 이동">→</button>
@@ -935,14 +937,16 @@ function bindDayEvents(col, date) {
       btnLater.disabled = !hasText || i >= getHourSlots().length - 1;
     };
 
-    check.addEventListener("click", () => {
-      if (!input.value.trim()) return;
-      data.plan[i].done = !data.plan[i].done;
+    check.addEventListener("change", () => {
+      if (!input.value.trim()) {
+        check.checked = false;
+        return;
+      }
+      data.plan[i].done = check.checked;
       if (data.plan[i].done) {
         data.plan[i].defer = null;
         data.plan[i].deferFrom = null;
       }
-      check.classList.toggle("is-done", data.plan[i].done);
       syncPlanRowClasses(row, data.plan[i]);
       persist();
       updateWeekProgress();
@@ -956,7 +960,7 @@ function bindDayEvents(col, date) {
         data.plan[i].defer = null;
         data.plan[i].deferFrom = null;
         data.plan[i].highlight = false;
-        check.classList.remove("is-done");
+        check.checked = false;
       }
       syncPlanRowClasses(row, data.plan[i]);
       syncActions();
