@@ -216,20 +216,6 @@ function carryWeekIncompleteToNextWeek(weekDays) {
     }
   }
 
-  const week = getWeekData(state.currentDate);
-  const nextWeek = getWeekData(addDays(weekDays[0], 7));
-  for (const [src, dest] of [[week.work, nextWeek.work], [week.life, nextWeek.life]]) {
-    for (let i = 0; i < src.length; i++) {
-      const item = src[i];
-      if (!item.text.trim() || item.done) continue;
-      const emptyIdx = dest.findIndex((d) => !d.text.trim());
-      if (emptyIdx < 0) continue;
-      dest[emptyIdx] = { text: item.text, done: false };
-      src[i] = { text: "", done: false };
-      moved++;
-    }
-  }
-
   if (moved) saveData();
   return moved;
 }
@@ -258,9 +244,13 @@ function weekPanelsHaveContent(week) {
   );
 }
 
-function copyWeekPanelsToNextWeek(weekDays) {
-  const week = getWeekData(state.currentDate);
-  const nextWeek = getWeekData(addDays(weekDays[0], 7));
+function copyWeekPanels(fromDate, toDate) {
+  if (weekKey(fromDate) === weekKey(toDate)) {
+    return { copied: 0, sameWeek: true };
+  }
+
+  const week = getWeekData(fromDate);
+  const targetWeek = getWeekData(toDate);
 
   const workItems = week.work.filter((item) => item.text.trim()).map(cloneTagItem);
   const lifeItems = week.life.filter((item) => item.text.trim()).map(cloneTagItem);
@@ -270,16 +260,16 @@ function copyWeekPanelsToNextWeek(weekDays) {
     return { copied: 0 };
   }
 
-  if (weekPanelsHaveContent(nextWeek)) {
+  if (weekPanelsHaveContent(targetWeek)) {
     const ok = confirm(
-      "다음 주 #WORK, #LIFE, 습관 트래커에 이미 내용이 있습니다.\n이번 주 내용으로 덮어쓸까요?\n(완료 체크와 습관 체크는 새 주처럼 초기화됩니다)",
+      "대상 주 #WORK, #LIFE, 습관 트래커에 이미 내용이 있습니다.\n이번 주 내용으로 덮어쓸까요?\n(완료·습관 체크는 새 주처럼 초기화됩니다. 원본은 그대로 유지됩니다)",
     );
     if (!ok) return { copied: 0, cancelled: true };
   }
 
-  nextWeek.work = normalizeTagList(workItems);
-  nextWeek.life = normalizeTagList(lifeItems);
-  nextWeek.habits = normalizeHabits(habitItems);
+  targetWeek.work = normalizeTagList(workItems);
+  targetWeek.life = normalizeTagList(lifeItems);
+  targetWeek.habits = normalizeHabits(habitItems);
   saveData();
 
   return {
@@ -288,6 +278,10 @@ function copyWeekPanelsToNextWeek(weekDays) {
     life: lifeItems.length,
     habits: habitItems.length,
   };
+}
+
+function copyWeekPanelsToNextWeek(weekDays) {
+  return copyWeekPanels(state.currentDate, addDays(weekDays[0], 7));
 }
 
 function getHourSlots() {
@@ -1182,16 +1176,40 @@ els.btnToday.addEventListener("click", () => {
 });
 
 els.btnCarryToday.addEventListener("click", () => {
-  const moved = carryDayIncompleteToTomorrow(startOfDay(new Date()));
-  if (moved) renderWeekly();
-  else alert("오늘 넘길 미완료 항목이 없거나 내일 칸이 부족합니다.");
+  const today = startOfDay(new Date());
+  const tomorrow = addDays(today, 1);
+  const messages = [];
+
+  const planMoved = carryDayIncompleteToTomorrow(today);
+  if (planMoved) messages.push(`미완료 일정 ${planMoved}개 → 내일`);
+
+  const panelResult = copyWeekPanels(today, tomorrow);
+  if (panelResult.cancelled) {
+    if (planMoved) renderWeekly();
+    return;
+  }
+  if (panelResult.copied) {
+    messages.push(`#WORK·LIFE·습관 → 다음 주 복사 (체크 초기화)`);
+  }
+
+  if (!planMoved && !panelResult.copied) {
+    if (panelResult.sameWeek) {
+      alert("같은 주에는 패널이 이미 공유됩니다. 미완료 일정이 없으면 복사할 항목이 없습니다.");
+    } else {
+      alert("복사할 #WORK, #LIFE, 습관 내용이 없습니다.");
+    }
+    return;
+  }
+
+  renderWeekly();
+  alert(messages.join("\n"));
 });
 
 els.btnCarryWeek.addEventListener("click", () => {
   const weekDays = getWeekDays(state.currentDate);
   const moved = carryWeekIncompleteToNextWeek(weekDays);
   if (moved) renderWeekly();
-  else alert("넘길 미완료 항목이 없거나 다음 주 칸이 부족합니다.");
+  else alert("넘길 미완료 일정이 없거나 다음 주 칸이 부족합니다.");
 });
 
 els.btnCopyPanelsWeek?.addEventListener("click", () => {
@@ -1204,7 +1222,7 @@ els.btnCopyPanelsWeek?.addEventListener("click", () => {
   }
   renderWeekly();
   alert(
-    `다음 주로 복사했습니다.\nWORK ${result.work} · LIFE ${result.life} · 습관 ${result.habits}\n› 버튼으로 다음 주를 확인하세요.`,
+    `다음 주로 복사했습니다. (원본 유지 · 체크 초기화)\nWORK ${result.work} · LIFE ${result.life} · 습관 ${result.habits}\n› 버튼으로 다음 주를 확인하세요.`,
   );
 });
 
