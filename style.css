@@ -396,6 +396,130 @@ html[data-theme="dark"] .save-status-just {
   min-width: 0;
 }
 
+.panel-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 8px;
+  padding-bottom: 4px;
+  border-bottom: 1px solid var(--line);
+}
+
+.panel-head .tag-head {
+  margin-bottom: 0;
+  padding-bottom: 0;
+  border-bottom: none;
+}
+
+.panel-head-habit {
+  grid-column: 1;
+}
+
+.panel-copy-btn {
+  flex-shrink: 0;
+  border: 1px dashed var(--line-dark);
+  background: var(--bg);
+  color: var(--text-muted);
+  font-family: inherit;
+  font-size: 0.62rem;
+  padding: 3px 8px;
+  border-radius: var(--radius-pill);
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease;
+}
+
+.panel-copy-btn:hover {
+  background: var(--sheet);
+  color: var(--text);
+  border-style: solid;
+}
+
+.planner-dialog {
+  border: none;
+  border-radius: var(--radius-lg);
+  padding: 0;
+  max-width: 340px;
+  width: calc(100% - 32px);
+  background: var(--sheet);
+  box-shadow: 0 16px 48px rgba(0, 0, 0, 0.14);
+  font-family: "Gaegu", "Poor Story", var(--font);
+}
+
+.planner-dialog::backdrop {
+  background: rgba(255, 248, 240, 0.72);
+  backdrop-filter: blur(3px);
+}
+
+.planner-dialog-inner {
+  margin: 0;
+  padding: 22px 20px 18px;
+  text-align: center;
+}
+
+.planner-dialog-emoji {
+  font-size: 1.6rem;
+  line-height: 1;
+  margin-bottom: 6px;
+}
+
+.planner-dialog-title {
+  font-size: 1.05rem;
+  font-weight: 700;
+  color: var(--text);
+  margin-bottom: 10px;
+}
+
+.planner-dialog-message {
+  font-size: 0.95rem;
+  line-height: 1.55;
+  color: var(--text);
+  margin-bottom: 18px;
+  word-break: keep-all;
+}
+
+.planner-dialog-sub {
+  display: block;
+  margin-top: 8px;
+  font-size: 0.82rem;
+  color: var(--text-muted);
+}
+
+.planner-dialog-actions {
+  display: flex;
+  justify-content: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.planner-dialog-btn {
+  border: 1px solid var(--line);
+  background: var(--bg);
+  color: var(--text);
+  font-family: inherit;
+  font-size: 0.88rem;
+  padding: 8px 18px;
+  border-radius: var(--radius-pill);
+  cursor: pointer;
+  min-width: 88px;
+}
+
+.planner-dialog-btn-primary {
+  background: #ffe8f0;
+  border-color: #f8bbd0;
+  color: #9c4365;
+  font-weight: 700;
+}
+
+.planner-dialog-btn-primary:hover {
+  background: #fce4ec;
+}
+
+.planner-dialog-btn-ghost:hover {
+  background: var(--sheet);
+}
+
 .tag-head {
   font-size: 0.72rem;
   font-weight: 600;
@@ -569,6 +693,12 @@ html[data-theme="dark"] .habit-day input[type="checkbox"]:checked::after {
   margin-bottom: 8px;
   padding-bottom: 4px;
   border-bottom: 1px solid var(--line);
+}
+
+.habit-head .panel-head-habit {
+  margin-bottom: 0;
+  padding-bottom: 0;
+  border-bottom: none;
 }
 
 .habit-tag-head {

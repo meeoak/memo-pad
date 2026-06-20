@@ -236,22 +236,104 @@ function cloneHabitItem(habit) {
   };
 }
 
-function weekPanelsHaveContent(week) {
-  return (
-    week.work.some((item) => item.text.trim()) ||
-    week.life.some((item) => item.text.trim()) ||
-    week.habits.some((habit) => habit.text.trim())
-  );
+function weekPanelHasContent(week, panel) {
+  if (panel === "work") return week.work.some((item) => item.text.trim());
+  if (panel === "life") return week.life.some((item) => item.text.trim());
+  return week.habits.some((habit) => habit.text.trim());
 }
 
-function copyWeekPanels(fromDate, toDate) {
+function panelLabel(panel) {
+  return { work: "#WORK", life: "#LIFE", habits: "습관" }[panel] || panel;
+}
+
+const plannerDialog = {
+  el: null,
+  emoji: null,
+  title: null,
+  message: null,
+  actions: null,
+
+  init() {
+    this.el = document.getElementById("plannerDialog");
+    this.emoji = document.getElementById("plannerDialogEmoji");
+    this.title = document.getElementById("plannerDialogTitle");
+    this.message = document.getElementById("plannerDialogMessage");
+    this.actions = document.getElementById("plannerDialogActions");
+  },
+
+  open(text, { title = "알림", emoji = "✿", confirm = false, okLabel = "확인", cancelLabel = "취소" } = {}) {
+    if (!this.el) this.init();
+    this.emoji.textContent = emoji;
+    this.title.textContent = title;
+    this.message.innerHTML = text;
+    this.actions.innerHTML = confirm
+      ? `<button type="button" class="planner-dialog-btn planner-dialog-btn-ghost" data-choice="cancel">${escapeAttr(cancelLabel)}</button>
+         <button type="submit" class="planner-dialog-btn planner-dialog-btn-primary" value="ok">${escapeAttr(okLabel)}</button>`
+      : `<button type="submit" class="planner-dialog-btn planner-dialog-btn-primary" value="ok">${escapeAttr(okLabel)}</button>`;
+
+    return new Promise((resolve) => {
+      const finish = () => {
+        this.el.removeEventListener("close", finish);
+        resolve(this.el.returnValue === "ok");
+      };
+      this.el.addEventListener("close", finish);
+      this.actions.querySelector('[data-choice="cancel"]')?.addEventListener("click", () => this.el.close("cancel"));
+      this.el.showModal();
+    });
+  },
+};
+
+function plannerAlert(text, options = {}) {
+  return plannerDialog.open(text, { ...options, confirm: false });
+}
+
+function plannerConfirm(text, options = {}) {
+  return plannerDialog.open(text, { ...options, confirm: true, title: options.title || "확인할게요" });
+}
+
+async function copyWeekPanel(panel, fromDate, toDate) {
+  if (weekKey(fromDate) === weekKey(toDate)) {
+    return { copied: 0, sameWeek: true, panel };
+  }
+
+  const week = getWeekData(fromDate);
+  const targetWeek = getWeekData(toDate);
+  const label = panelLabel(panel);
+  let items;
+
+  if (panel === "work") {
+    items = week.work.filter((item) => item.text.trim()).map(cloneTagItem);
+  } else if (panel === "life") {
+    items = week.life.filter((item) => item.text.trim()).map(cloneTagItem);
+  } else {
+    items = week.habits.filter((habit) => habit.text.trim()).map(cloneHabitItem);
+  }
+
+  if (!items.length) return { copied: 0, panel };
+
+  if (weekPanelHasContent(targetWeek, panel)) {
+    const ok = await plannerConfirm(
+      `다음 주 <strong>${label}</strong>에 이미 내용이 있어요.<br><br>이번 주 내용으로 덮어쓸까요?<span class="planner-dialog-sub">체크는 새 주처럼 비워져요 · 원본은 그대로</span>`,
+      { okLabel: "복사하기", emoji: "📋" },
+    );
+    if (!ok) return { copied: 0, cancelled: true, panel };
+  }
+
+  if (panel === "work") targetWeek.work = normalizeTagList(items);
+  else if (panel === "life") targetWeek.life = normalizeTagList(items);
+  else targetWeek.habits = normalizeHabits(items);
+
+  saveData();
+  return { copied: items.length, panel, label };
+}
+
+async function copyWeekPanels(fromDate, toDate) {
   if (weekKey(fromDate) === weekKey(toDate)) {
     return { copied: 0, sameWeek: true };
   }
 
   const week = getWeekData(fromDate);
   const targetWeek = getWeekData(toDate);
-
   const workItems = week.work.filter((item) => item.text.trim()).map(cloneTagItem);
   const lifeItems = week.life.filter((item) => item.text.trim()).map(cloneTagItem);
   const habitItems = week.habits.filter((habit) => habit.text.trim()).map(cloneHabitItem);
@@ -260,16 +342,22 @@ function copyWeekPanels(fromDate, toDate) {
     return { copied: 0 };
   }
 
-  if (weekPanelsHaveContent(targetWeek)) {
-    const ok = confirm(
-      "대상 주 #WORK, #LIFE, 습관 트래커에 이미 내용이 있습니다.\n이번 주 내용으로 덮어쓸까요?\n(완료·습관 체크는 새 주처럼 초기화됩니다. 원본은 그대로 유지됩니다)",
+  const wouldOverwrite =
+    (workItems.length && weekPanelHasContent(targetWeek, "work")) ||
+    (lifeItems.length && weekPanelHasContent(targetWeek, "life")) ||
+    (habitItems.length && weekPanelHasContent(targetWeek, "habits"));
+
+  if (wouldOverwrite) {
+    const ok = await plannerConfirm(
+      `다음 주 패널에 이미 내용이 있어요.<br><br>#WORK · #LIFE · 습관을 한 번에 복사할까요?<span class="planner-dialog-sub">체크는 새 주처럼 비워져요 · 원본은 그대로</span>`,
+      { okLabel: "전체 복사", emoji: "📋" },
     );
     if (!ok) return { copied: 0, cancelled: true };
   }
 
-  targetWeek.work = normalizeTagList(workItems);
-  targetWeek.life = normalizeTagList(lifeItems);
-  targetWeek.habits = normalizeHabits(habitItems);
+  if (workItems.length) targetWeek.work = normalizeTagList(workItems);
+  if (lifeItems.length) targetWeek.life = normalizeTagList(lifeItems);
+  if (habitItems.length) targetWeek.habits = normalizeHabits(habitItems);
   saveData();
 
   return {
@@ -696,7 +784,10 @@ function renderHabitTracker(weekDays, habits) {
 
   els.habitTracker.innerHTML = `
     <div class="habit-head">
-      <h3 class="tag-head habit-tag-head">습관 트래커</h3>
+      <div class="panel-head panel-head-habit">
+        <h3 class="tag-head habit-tag-head">습관 트래커</h3>
+        <button type="button" class="panel-copy-btn" data-panel="habits" title="이 패널만 다음 주에 복사">다음주 ↗</button>
+      </div>
       <div class="habit-days-head">${dayHeaders}</div>
     </div>
     <ul class="habit-list">${rows}</ul>
@@ -1175,7 +1266,7 @@ els.btnToday.addEventListener("click", () => {
   renderWeekly();
 });
 
-els.btnCarryToday.addEventListener("click", () => {
+els.btnCarryToday.addEventListener("click", async () => {
   const today = startOfDay(new Date());
   const tomorrow = addDays(today, 1);
   const messages = [];
@@ -1183,46 +1274,75 @@ els.btnCarryToday.addEventListener("click", () => {
   const planMoved = carryDayIncompleteToTomorrow(today);
   if (planMoved) messages.push(`미완료 일정 ${planMoved}개 → 내일`);
 
-  const panelResult = copyWeekPanels(today, tomorrow);
+  const panelResult = await copyWeekPanels(today, tomorrow);
   if (panelResult.cancelled) {
     if (planMoved) renderWeekly();
     return;
   }
   if (panelResult.copied) {
-    messages.push(`#WORK·LIFE·습관 → 다음 주 복사 (체크 초기화)`);
+    messages.push(`패널 → 다음 주 복사 완료`);
   }
 
   if (!planMoved && !panelResult.copied) {
     if (panelResult.sameWeek) {
-      alert("같은 주에는 패널이 이미 공유됩니다. 미완료 일정이 없으면 복사할 항목이 없습니다.");
+      await plannerAlert("같은 주에는 패널이 함께 쓰여요.<br>미완료 일정이 없으면 할 일이 없어요.", { emoji: "☁️", title: "알림" });
     } else {
-      alert("복사할 #WORK, #LIFE, 습관 내용이 없습니다.");
+      await plannerAlert("복사할 패널 내용이 없어요.", { emoji: "📝", title: "비어 있어요" });
     }
     return;
   }
 
   renderWeekly();
-  alert(messages.join("\n"));
+  await plannerAlert(messages.join("<br>"), { emoji: "✨", title: "완료!" });
 });
 
 els.btnCarryWeek.addEventListener("click", () => {
   const weekDays = getWeekDays(state.currentDate);
   const moved = carryWeekIncompleteToNextWeek(weekDays);
   if (moved) renderWeekly();
-  else alert("넘길 미완료 일정이 없거나 다음 주 칸이 부족합니다.");
+  else plannerAlert("넘길 미완료 일정이 없거나 다음 주 칸이 부족해요.", { emoji: "📅", title: "일정" });
 });
 
-els.btnCopyPanelsWeek?.addEventListener("click", () => {
+els.btnCopyPanelsWeek?.addEventListener("click", async () => {
   const weekDays = getWeekDays(state.currentDate);
-  const result = copyWeekPanelsToNextWeek(weekDays);
+  const result = await copyWeekPanelsToNextWeek(weekDays);
   if (result.cancelled) return;
   if (!result.copied) {
-    alert("복사할 #WORK, #LIFE, 습관 내용이 없습니다.");
+    await plannerAlert("복사할 #WORK, #LIFE, 습관 내용이 없어요.", { emoji: "📝", title: "비어 있어요" });
     return;
   }
   renderWeekly();
-  alert(
-    `다음 주로 복사했습니다. (원본 유지 · 체크 초기화)\nWORK ${result.work} · LIFE ${result.life} · 습관 ${result.habits}\n› 버튼으로 다음 주를 확인하세요.`,
+  await plannerAlert(
+    `다음 주로 복사했어요 <span class="planner-dialog-sub">원본 유지 · 체크 초기화</span><br><br>WORK ${result.work} · LIFE ${result.life} · 습관 ${result.habits}<br>› 버튼으로 다음 주를 확인하세요`,
+    { emoji: "🌷", title: "복사 완료" },
+  );
+});
+
+document.addEventListener("click", async (event) => {
+  const btn = event.target.closest(".panel-copy-btn");
+  if (!btn) return;
+
+  const panel = btn.dataset.panel;
+  if (!panel) return;
+
+  const weekDays = getWeekDays(state.currentDate);
+  const result = await copyWeekPanel(panel, state.currentDate, addDays(weekDays[0], 7));
+  if (result.cancelled) return;
+
+  if (result.sameWeek) {
+    await plannerAlert("같은 주에는 패널이 함께 쓰여요.<br>다음 주로 넘어간 뒤 복사해 주세요.", { emoji: "☁️", title: panelLabel(panel) });
+    return;
+  }
+
+  if (!result.copied) {
+    await plannerAlert(`${panelLabel(panel)}에 복사할 내용이 없어요.`, { emoji: "📝", title: "비어 있어요" });
+    return;
+  }
+
+  renderWeekly();
+  await plannerAlert(
+    `<strong>${result.label}</strong> ${result.copied}개를 다음 주로 복사했어요<span class="planner-dialog-sub">원본 유지 · 체크 초기화 · › 로 확인</span>`,
+    { emoji: "✿", title: "복사 완료" },
   );
 });
 
@@ -1241,6 +1361,7 @@ function initTheme() {
 }
 
 initTheme();
+plannerDialog.init();
 MemoStyle.init({ onPersist: persist });
 renderWeekly();
 

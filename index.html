@@ -13,7 +13,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Dongle:wght@300;400;700&family=Gaegu:wght@300;400;700&family=Gamja+Flower&family=Hi+Melody&family=Jua&family=Poor+Story&family=Single+Day&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="style.css?v=27">
+  <link rel="stylesheet" href="style.css?v=28">
 </head>
 <body>
   <div class="app">
@@ -90,12 +90,18 @@
       <div class="weekly-layout sheet">
         <header class="weekly-top">
           <div class="tag-section top-panel top-panel-work">
-            <h3 class="tag-head">#WORK</h3>
+            <div class="panel-head">
+              <h3 class="tag-head">#WORK</h3>
+              <button type="button" class="panel-copy-btn" data-panel="work" title="이 패널만 다음 주에 복사">다음주 ↗</button>
+            </div>
             <ul class="tag-list" id="workList"></ul>
             <button type="button" class="tag-add-btn" id="btnAddWork">+ 행 추가</button>
           </div>
           <div class="tag-section top-panel top-panel-life">
-            <h3 class="tag-head">#LIFE</h3>
+            <div class="panel-head">
+              <h3 class="tag-head">#LIFE</h3>
+              <button type="button" class="panel-copy-btn" data-panel="life" title="이 패널만 다음 주에 복사">다음주 ↗</button>
+            </div>
             <ul class="tag-list" id="lifeList"></ul>
             <button type="button" class="tag-add-btn" id="btnAddLife">+ 행 추가</button>
           </div>
@@ -111,8 +117,18 @@
       </div>
     </main>
   </div>
+
+  <dialog class="planner-dialog" id="plannerDialog" aria-labelledby="plannerDialogTitle">
+    <form method="dialog" class="planner-dialog-inner">
+      <p class="planner-dialog-emoji" id="plannerDialogEmoji" aria-hidden="true">✿</p>
+      <h2 class="planner-dialog-title" id="plannerDialogTitle">알림</h2>
+      <p class="planner-dialog-message" id="plannerDialogMessage"></p>
+      <div class="planner-dialog-actions" id="plannerDialogActions"></div>
+    </form>
+  </dialog>
+
   <script src="memo-style.js?v=27"></script>
-  <script src="app.js?v=29"></script>
+  <script src="app.js?v=30"></script>
   <script src="notifications.js?v=27"></script>
 </body>
 </html>
