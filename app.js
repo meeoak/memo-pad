@@ -33,6 +33,7 @@ const els = {
   saveStatus: document.getElementById("saveStatus"),
   btnCarryToday: document.getElementById("btnCarryToday"),
   btnCarryWeek: document.getElementById("btnCarryWeek"),
+  btnCopyPanelsWeek: document.getElementById("btnCopyPanelsWeek"),
   btnAddWork: document.getElementById("btnAddWork"),
   btnAddLife: document.getElementById("btnAddLife"),
   deferredPanel: document.getElementById("deferredPanel"),
@@ -231,6 +232,62 @@ function carryWeekIncompleteToNextWeek(weekDays) {
 
   if (moved) saveData();
   return moved;
+}
+
+function cloneTagItem(item) {
+  return {
+    text: item.text,
+    done: false,
+    style: item.style ? MemoStyle.normalizeStyle({ ...item.style }) : null,
+  };
+}
+
+function cloneHabitItem(habit) {
+  return {
+    text: habit.text,
+    days: Array(7).fill(false),
+    style: habit.style ? MemoStyle.normalizeStyle({ ...habit.style }) : null,
+  };
+}
+
+function weekPanelsHaveContent(week) {
+  return (
+    week.work.some((item) => item.text.trim()) ||
+    week.life.some((item) => item.text.trim()) ||
+    week.habits.some((habit) => habit.text.trim())
+  );
+}
+
+function copyWeekPanelsToNextWeek(weekDays) {
+  const week = getWeekData(state.currentDate);
+  const nextWeek = getWeekData(addDays(weekDays[0], 7));
+
+  const workItems = week.work.filter((item) => item.text.trim()).map(cloneTagItem);
+  const lifeItems = week.life.filter((item) => item.text.trim()).map(cloneTagItem);
+  const habitItems = week.habits.filter((habit) => habit.text.trim()).map(cloneHabitItem);
+
+  if (!workItems.length && !lifeItems.length && !habitItems.length) {
+    return { copied: 0 };
+  }
+
+  if (weekPanelsHaveContent(nextWeek)) {
+    const ok = confirm(
+      "다음 주 #WORK, #LIFE, 습관 트래커에 이미 내용이 있습니다.\n이번 주 내용으로 덮어쓸까요?\n(완료 체크와 습관 체크는 새 주처럼 초기화됩니다)",
+    );
+    if (!ok) return { copied: 0, cancelled: true };
+  }
+
+  nextWeek.work = normalizeTagList(workItems);
+  nextWeek.life = normalizeTagList(lifeItems);
+  nextWeek.habits = normalizeHabits(habitItems);
+  saveData();
+
+  return {
+    copied: workItems.length + lifeItems.length + habitItems.length,
+    work: workItems.length,
+    life: lifeItems.length,
+    habits: habitItems.length,
+  };
 }
 
 function getHourSlots() {
@@ -1135,6 +1192,20 @@ els.btnCarryWeek.addEventListener("click", () => {
   const moved = carryWeekIncompleteToNextWeek(weekDays);
   if (moved) renderWeekly();
   else alert("넘길 미완료 항목이 없거나 다음 주 칸이 부족합니다.");
+});
+
+els.btnCopyPanelsWeek?.addEventListener("click", () => {
+  const weekDays = getWeekDays(state.currentDate);
+  const result = copyWeekPanelsToNextWeek(weekDays);
+  if (result.cancelled) return;
+  if (!result.copied) {
+    alert("복사할 #WORK, #LIFE, 습관 내용이 없습니다.");
+    return;
+  }
+  renderWeekly();
+  alert(
+    `다음 주로 복사했습니다.\nWORK ${result.work} · LIFE ${result.life} · 습관 ${result.habits}\n› 버튼으로 다음 주를 확인하세요.`,
+  );
 });
 
 function applyTheme(theme) {

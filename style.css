@@ -212,6 +212,11 @@ body {
   color: var(--text);
 }
 
+.carry-btn-copy {
+  border-color: var(--line-dark);
+  color: var(--text);
+}
+
 .save-status {
   font-size: 0.68rem;
   color: var(--text-muted);
