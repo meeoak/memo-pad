@@ -14,7 +14,23 @@ const LEDGER_ROWS_MIN = 3;
 const LEDGER_ROWS_MAX = 10;
 const THEME_KEY = "planner-theme";
 
-const ledgerOpenDates = new Set();
+const LEDGER_OPEN_KEY = "planner-ledger-open";
+
+function loadLedgerOpenDates() {
+  try {
+    const raw = localStorage.getItem(LEDGER_OPEN_KEY);
+    if (raw) return new Set(JSON.parse(raw));
+  } catch {
+    /* ignore */
+  }
+  return new Set();
+}
+
+function saveLedgerOpenDates() {
+  localStorage.setItem(LEDGER_OPEN_KEY, JSON.stringify([...ledgerOpenDates]));
+}
+
+const ledgerOpenDates = loadLedgerOpenDates();
 
 let state = {
   currentDate: startOfDay(new Date()),
@@ -548,8 +564,7 @@ function formatLedgerHeaderSummary(totals) {
   return parts.join(" · ");
 }
 
-function isLedgerOpen(date, weeklySync) {
-  if (!weeklySync) return true;
+function isLedgerOpen(date) {
   return ledgerOpenDates.has(dateKey(date));
 }
 
@@ -775,8 +790,7 @@ function buildPlanSyncColumnHTML(days) {
 }
 
 function buildLedgerSectionHTML(date, ledger, options = {}) {
-  const weeklySync = options.weeklySync === true;
-  const isOpen = isLedgerOpen(date, weeklySync);
+  const isOpen = isLedgerOpen(date);
   const totals = getLedgerTotals(ledger);
   const canRemove = ledger.length > LEDGER_ROWS_MIN;
   const canAdd = ledger.length < LEDGER_ROWS_MAX;
@@ -796,7 +810,7 @@ function buildLedgerSectionHTML(date, ledger, options = {}) {
 
   return `
     <section class="week-col-ledger${isOpen ? " is-open" : ""}">
-      <button type="button" class="ledger-toggle" aria-expanded="${isOpen}">
+      <button type="button" class="ledger-toggle" aria-expanded="${isOpen}" title="${isOpen ? "가계부 접기" : "가계부 펼치기"}">
         <span class="lbl-ledger">가계부</span>
         <span class="ledger-summary">${summary}</span>
         <span class="ledger-chevron" aria-hidden="true">▾</span>
@@ -1572,13 +1586,17 @@ function bindLedgerEvents(col, date) {
 
   section.querySelector(".ledger-toggle")?.addEventListener("click", () => {
     const open = section.classList.toggle("is-open");
-    section.querySelector(".ledger-toggle")?.setAttribute("aria-expanded", open ? "true" : "false");
+    const toggle = section.querySelector(".ledger-toggle");
+    toggle?.setAttribute("aria-expanded", open ? "true" : "false");
+    toggle?.setAttribute("title", open ? "가계부 접기" : "가계부 펼치기");
     if (open) ledgerOpenDates.add(key);
     else ledgerOpenDates.delete(key);
+    saveLedgerOpenDates();
   });
 
   section.querySelector(".ledger-add-btn")?.addEventListener("click", () => {
     ledgerOpenDates.add(key);
+    saveLedgerOpenDates();
     if (addLedgerRow(date)) renderWeekly();
   });
 

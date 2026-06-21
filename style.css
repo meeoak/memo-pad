@@ -1411,6 +1411,10 @@ body.weekly-plan-sync .week-col .plan-row-actions {
   flex-shrink: 0;
 }
 
+.ledger-toggle:hover {
+  background: rgba(0, 0, 0, 0.04);
+}
+
 .week-col-ledger.is-open .ledger-chevron {
   transform: rotate(180deg);
 }
@@ -1422,14 +1426,6 @@ body.weekly-plan-sync .week-col .plan-row-actions {
 
 .week-col-ledger.is-open .ledger-body {
   display: block;
-}
-
-body.mobile-daily .week-col-ledger .ledger-body {
-  display: block;
-}
-
-body.mobile-daily .week-col-ledger .ledger-chevron {
-  display: none;
 }
 
 .ledger-rows {
