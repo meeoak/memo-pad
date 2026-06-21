@@ -636,6 +636,75 @@ html[data-theme="dark"] .habit-day input[type="checkbox"]:checked::after {
   gap: 6px;
 }
 
+.row-del-btn {
+  flex-shrink: 0;
+  width: 18px;
+  height: 18px;
+  border: 1px solid transparent;
+  border-radius: var(--radius-pill);
+  background: transparent;
+  color: var(--text-muted);
+  font-family: inherit;
+  font-size: 0.85rem;
+  line-height: 1;
+  padding: 0;
+  cursor: pointer;
+  opacity: 0.45;
+  transition: opacity 0.15s ease, background 0.15s ease, color 0.15s ease;
+}
+
+.tag-item:hover .row-del-btn,
+.habit-row:hover .row-del-btn,
+.week-hour-row:hover .plan-row-del {
+  opacity: 1;
+}
+
+.row-del-btn:hover:not(:disabled) {
+  background: #fce4ec;
+  border-color: #f8bbd0;
+  color: #c44;
+  opacity: 1;
+}
+
+.row-del-btn:disabled {
+  opacity: 0.15;
+  cursor: default;
+}
+
+.plan-row-del {
+  width: 16px;
+  height: 16px;
+  font-size: 0.75rem;
+}
+
+.plan-row-actions {
+  padding: 4px 6px 6px;
+  border-top: 1px dotted var(--line);
+}
+
+.plan-row-add-btn {
+  width: 100%;
+  border: 1px dashed var(--line-dark);
+  background: transparent;
+  color: var(--text-muted);
+  font-family: inherit;
+  font-size: 0.62rem;
+  padding: 3px 8px;
+  border-radius: var(--radius-pill);
+  cursor: pointer;
+}
+
+.plan-row-add-btn:hover:not(:disabled) {
+  background: var(--bg);
+  color: var(--text);
+  border-style: solid;
+}
+
+.plan-row-add-btn:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+
 .tag-item input[type="text"] {
   flex: 1;
   border: none;
@@ -734,7 +803,7 @@ html[data-theme="dark"] .habit-day input[type="checkbox"]:checked::after {
 
 .habit-row {
   display: grid;
-  grid-template-columns: var(--habit-name-w) 1fr;
+  grid-template-columns: var(--habit-name-w) 1fr 18px;
   gap: 6px;
   align-items: center;
 }

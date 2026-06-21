@@ -8,6 +8,8 @@ const HABIT_ROWS_MIN = 5;
 const HABIT_ROWS_MAX = 12;
 const PLAN_START_HOUR = 4;
 const PLAN_SLOT_COUNT = 21;
+const PLAN_SLOT_MIN = 10;
+const PLAN_SLOT_MAX = 28;
 const THEME_KEY = "planner-theme";
 
 let state = {
@@ -372,11 +374,26 @@ function copyWeekPanelsToNextWeek(weekDays) {
   return copyWeekPanels(state.currentDate, addDays(weekDays[0], 7));
 }
 
-function getHourSlots() {
-  return Array.from({ length: PLAN_SLOT_COUNT }, (_, i) => {
+function getHourSlots(count = PLAN_SLOT_COUNT) {
+  const slotCount = Math.max(PLAN_SLOT_MIN, Math.min(PLAN_SLOT_MAX, count));
+  return Array.from({ length: slotCount }, (_, i) => {
     const hour24 = (PLAN_START_HOUR + i) % 24;
     return formatHourDisplay(hour24);
   });
+}
+
+function getPlanSlotCount(plan) {
+  const len = Array.isArray(plan) ? plan.length : PLAN_SLOT_COUNT;
+  return Math.max(PLAN_SLOT_MIN, Math.min(PLAN_SLOT_MAX, len || PLAN_SLOT_COUNT));
+}
+
+function syncDayDo(data) {
+  const slots = getHourSlots(data.plan.length);
+  const nextDo = {};
+  for (const s of slots) {
+    nextDo[s.key] = data.do?.[s.key] || { cells: ["", "", "", ""], tone: "none" };
+  }
+  data.do = nextDo;
 }
 
 function formatHourDisplay(hour24) {
@@ -390,15 +407,18 @@ function oldPlanIndexForHour(hour24) {
   return (hour24 - 3 + 24) % 24;
 }
 
-function migratePlanArray(plan) {
-  const slots = getHourSlots();
-  if (plan.length === slots.length) return plan.map(normalizePlanItem);
+function migratePlanArray(plan, slotCount = PLAN_SLOT_COUNT) {
+  const slots = getHourSlots(slotCount);
+  const normalized = Array.isArray(plan) ? plan.map(normalizePlanItem) : [];
 
-  if (plan.length === 24) {
-    return slots.map((s) => normalizePlanItem(plan[oldPlanIndexForHour(s.hour24)]));
+  if (normalized.length === 24 && slotCount !== 24) {
+    return slots.map((s) => normalizePlanItem(normalized[oldPlanIndexForHour(s.hour24)]));
   }
 
-  return Array.from({ length: slots.length }, (_, i) => normalizePlanItem(plan[i]));
+  if (normalized.length === slotCount) return normalized;
+  if (normalized.length > slotCount) return normalized.slice(0, slotCount);
+
+  return Array.from({ length: slotCount }, (_, i) => normalized[i] || emptyPlanItem());
 }
 
 function emptyDayData() {
@@ -510,6 +530,23 @@ function addTagRow(type) {
   updateWeekProgress();
 }
 
+function removeTagRow(type, index) {
+  const week = getWeekData(state.currentDate);
+  const list = type === "work" ? week.work : week.life;
+  if (list.length <= TAG_ROWS_MIN) return false;
+  list.splice(index, 1);
+  saveData();
+  if (type === "work") {
+    renderTagList(els.workList, week.work, "work");
+    if (els.btnAddWork) els.btnAddWork.disabled = week.work.length >= TAG_ROWS_MAX;
+  } else {
+    renderTagList(els.lifeList, week.life, "life");
+    if (els.btnAddLife) els.btnAddLife.disabled = week.life.length >= TAG_ROWS_MAX;
+  }
+  updateWeekProgress();
+  return true;
+}
+
 function addHabitRow() {
   const week = getWeekData(state.currentDate);
   if (week.habits.length >= HABIT_ROWS_MAX) return;
@@ -518,10 +555,42 @@ function addHabitRow() {
   renderHabitTracker(getWeekDays(state.currentDate), week.habits);
 }
 
+function removeHabitRow(index) {
+  const week = getWeekData(state.currentDate);
+  if (week.habits.length <= HABIT_ROWS_MIN) return false;
+  week.habits.splice(index, 1);
+  saveData();
+  renderHabitTracker(getWeekDays(state.currentDate), week.habits);
+  return true;
+}
+
+function addPlanRow(date) {
+  const data = getDayData(date);
+  if (data.plan.length >= PLAN_SLOT_MAX) return false;
+  data.plan.push(emptyPlanItem());
+  syncDayDo(data);
+  saveData();
+  return true;
+}
+
+function removePlanRow(date, index) {
+  const data = getDayData(date);
+  if (data.plan.length <= PLAN_SLOT_MIN) return false;
+  const slots = getHourSlots(data.plan.length);
+  const removedKey = slots[index]?.key;
+  data.plan.splice(index, 1);
+  if (removedKey && data.do[removedKey]) delete data.do[removedKey];
+  syncDayDo(data);
+  saveData();
+  return true;
+}
+
 function getDayData(date) {
   const key = dateKey(date);
   if (!state.data.days[key]) state.data.days[key] = emptyDayData();
-  state.data.days[key].plan = migratePlanArray(state.data.days[key].plan);
+  const slotCount = getPlanSlotCount(state.data.days[key].plan);
+  state.data.days[key].plan = migratePlanArray(state.data.days[key].plan, slotCount);
+  syncDayDo(state.data.days[key]);
   state.data.days[key].see = normalizeSee(state.data.days[key].see);
   return state.data.days[key];
 }
@@ -607,7 +676,9 @@ function buildWeekColumnHTML(date) {
   const data = getDayData(date);
   const see = normalizeSee(data.see);
   const di = date.getDay();
-  const slots = getHourSlots();
+  const slots = getHourSlots(data.plan.length);
+  const canRemovePlanRow = data.plan.length > PLAN_SLOT_MIN;
+  const canAddPlanRow = data.plan.length < PLAN_SLOT_MAX;
   const headCls = ["week-col-head", di === 6 ? "sat" : "", di === 0 ? "sun" : "", isToday(date) ? "today" : ""].filter(Boolean).join(" ");
 
   const rows = slots.map((s, i) => {
@@ -617,6 +688,9 @@ function buildWeekColumnHTML(date) {
     const timeCell = plan.text.trim()
       ? `<div class="cell-time drag-handle" draggable="true" title="드래그하여 이동"><span class="time-num">${s.num}</span>${periodHtml}</div>`
       : `<div class="cell-time"><span class="time-num">${s.num}</span>${periodHtml}</div>`;
+    const delBtn = canRemovePlanRow
+      ? `<button type="button" class="row-del-btn plan-row-del" data-plan-index="${i}" aria-label="행 삭제" title="행 삭제">×</button>`
+      : "";
 
     return `
       <div class="${rowCls}" data-index="${i}" data-hour="${s.key}">
@@ -626,6 +700,7 @@ function buildWeekColumnHTML(date) {
             <input type="checkbox" class="plan-check planner-check" ${plan.done ? "checked" : ""} aria-label="완료">
           </label>
           <input type="text" class="plan-input" value="${escapeAttr(plan.text)}" title="더블클릭: 강조">
+          ${delBtn}
           <div class="plan-defer${plan.text?.trim() ? " has-plan" : ""}">
             <button type="button" class="defer-btn defer-tomorrow" aria-label="내일로 이동" title="내일로 이동">→</button>
             <button type="button" class="defer-btn defer-later" aria-label="한 시간 미루기" title="한 시간 미루기">↓</button>
@@ -642,6 +717,9 @@ function buildWeekColumnHTML(date) {
       </header>
       <div class="week-col-labels"><span class="lbl-spacer"></span><span class="lbl-plan">PLAN</span></div>
       <div class="week-col-rows">${rows}</div>
+      <div class="plan-row-actions">
+        <button type="button" class="plan-row-add-btn" data-plan-date="${dateKey(date)}" ${canAddPlanRow ? "" : "disabled"}>+ 행</button>
+      </div>
       <footer class="week-col-see">
         <span class="lbl-see">SEE</span>
         <div class="see-fields">
@@ -715,10 +793,12 @@ function bindMemoStyle(input, binding) {
 }
 
 function renderTagList(container, items, type) {
+  const canDelete = items.length > TAG_ROWS_MIN;
   container.innerHTML = items.map((item, i) => `
     <li class="tag-item">
       <input type="checkbox" data-type="${type}" data-i="${i}" ${item.done ? "checked" : ""}>
       <input type="text" data-type="${type}" data-i="${i}" value="${escapeAttr(item.text)}">
+      <button type="button" class="row-del-btn tag-row-del" data-type="${type}" data-i="${i}" aria-label="행 삭제" title="행 삭제" ${canDelete ? "" : "disabled"}>×</button>
     </li>`).join("");
 
   container.querySelectorAll("input").forEach((inp) => {
@@ -739,6 +819,11 @@ function renderTagList(container, items, type) {
       },
       getText: () => inp.value,
       getLabel: () => `${type === "work" ? "#WORK" : "#LIFE"} · ${inp.value.trim() || `행 ${i + 1}`}`,
+    });
+  });
+  container.querySelectorAll(".tag-row-del").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      removeTagRow(btn.dataset.type, Number(btn.dataset.i));
     });
   });
   bindEnterToNextRow(container, 'input[type="text"]');
@@ -766,6 +851,7 @@ function renderHabitTracker(weekDays, habits) {
     return `<span class="${cls.join(" ")}" title="${date.getMonth() + 1}/${date.getDate()}">${DOW_MINI[di]}</span>`;
   }).join("");
 
+  const canDeleteHabit = habits.length > HABIT_ROWS_MIN;
   const rows = habits.map((habit, hi) => {
     const checks = habit.days.map((done, di) => {
       const cls = ["habit-day"];
@@ -779,6 +865,7 @@ function renderHabitTracker(weekDays, habits) {
       <li class="habit-row">
         <input type="text" class="habit-name" data-habit="${hi}" value="${escapeAttr(habit.text)}" placeholder="습관 ${hi + 1}">
         <div class="habit-days">${checks}</div>
+        <button type="button" class="row-del-btn habit-row-del" data-habit="${hi}" aria-label="행 삭제" title="행 삭제" ${canDeleteHabit ? "" : "disabled"}>×</button>
       </li>`;
   }).join("");
 
@@ -827,6 +914,12 @@ function renderHabitTracker(weekDays, habits) {
     habitAddBtn.disabled = habits.length >= HABIT_ROWS_MAX;
     habitAddBtn.onclick = addHabitRow;
   }
+
+  els.habitTracker.querySelectorAll(".habit-row-del").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      removeHabitRow(Number(btn.dataset.habit));
+    });
+  });
 }
 
 function emptyPlanItem() {
@@ -851,7 +944,7 @@ function normalizePlanItem(item) {
 
 function formatSlotLabel(dateKeyStr, index) {
   const date = parseDate(dateKeyStr);
-  const slot = getHourSlots()[index];
+  const slot = getHourSlots(getDayData(date).plan.length)[index];
   if (!slot) return dateKeyStr;
   const periodText = slot.showPeriod ? ` ${slot.period}` : "";
   return `${DAY_NAMES[date.getDay()]} ${date.getDate()} · ${slot.num}${periodText}`;
@@ -972,7 +1065,8 @@ function deferPlanToTomorrow(date, index) {
 }
 
 function deferPlanToday(date, index) {
-  if (index >= getHourSlots().length - 1) return false;
+  const data = getDayData(date);
+  if (index >= data.plan.length - 1) return false;
   return movePlanItem(date, index, date, index + 1, "later");
 }
 
@@ -1063,6 +1157,16 @@ function bindPlanDragDrop(container) {
 function bindDayEvents(col, date) {
   const data = getDayData(date);
 
+  col.querySelector(".plan-row-add-btn")?.addEventListener("click", () => {
+    if (addPlanRow(date)) renderWeekly();
+  });
+
+  col.querySelectorAll(".plan-row-del").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      if (removePlanRow(date, Number(btn.dataset.planIndex))) renderWeekly();
+    });
+  });
+
   col.querySelectorAll(".week-hour-row").forEach((row) => {
     const i = Number(row.dataset.index);
     const check = row.querySelector(".plan-check");
@@ -1076,7 +1180,7 @@ function bindDayEvents(col, date) {
       row.classList.toggle("has-plan", hasText);
       defer.classList.toggle("has-plan", hasText);
       btnTomorrow.disabled = !hasText;
-      btnLater.disabled = !hasText || i >= getHourSlots().length - 1;
+      btnLater.disabled = !hasText || i >= data.plan.length - 1;
     };
 
     check.addEventListener("change", () => {
@@ -1117,7 +1221,7 @@ function bindDayEvents(col, date) {
       },
       getText: () => input.value,
       getLabel: () => {
-        const slot = getHourSlots()[i];
+        const slot = getHourSlots(data.plan.length)[i];
         const period = slot.showPeriod ? ` ${slot.period}` : "";
         return `PLAN · ${DAY_NAMES[date.getDay()]} ${slot.num}${period}`;
       },
