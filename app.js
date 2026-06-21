@@ -10,7 +10,11 @@ const PLAN_START_HOUR = 4;
 const PLAN_SLOT_COUNT = 21;
 const PLAN_SLOT_MIN = 10;
 const PLAN_SLOT_MAX = 28;
+const LEDGER_ROWS_MIN = 3;
+const LEDGER_ROWS_MAX = 10;
 const THEME_KEY = "planner-theme";
+
+const ledgerOpenDates = new Set();
 
 let state = {
   currentDate: startOfDay(new Date()),
@@ -487,7 +491,82 @@ function emptyDayData() {
     plan: slots.map(() => emptyPlanItem()),
     do: Object.fromEntries(slots.map((s) => [s.key, { cells: ["", "", "", ""], tone: "none" }])),
     see: emptySee(),
+    ledger: emptyLedger(),
   };
+}
+
+function emptyLedgerEntry() {
+  return { label: "", amount: 0, kind: "expense" };
+}
+
+function emptyLedger() {
+  return Array.from({ length: LEDGER_ROWS_MIN }, () => emptyLedgerEntry());
+}
+
+function normalizeLedgerEntry(entry) {
+  if (!entry || typeof entry !== "object") return emptyLedgerEntry();
+  const amount = Math.abs(Number(entry.amount) || 0);
+  const kind = entry.kind === "income" ? "income" : "expense";
+  return { label: entry.label || "", amount, kind };
+}
+
+function normalizeLedger(ledger) {
+  const list = Array.isArray(ledger) ? ledger.map(normalizeLedgerEntry) : [];
+  while (list.length < LEDGER_ROWS_MIN) list.push(emptyLedgerEntry());
+  if (list.length > LEDGER_ROWS_MAX) return list.slice(0, LEDGER_ROWS_MAX);
+  return list;
+}
+
+function parseLedgerAmountInput(raw) {
+  const digits = String(raw).replace(/[^\d]/g, "");
+  if (!digits) return 0;
+  const n = parseInt(digits, 10);
+  return Number.isFinite(n) ? n : 0;
+}
+
+function getLedgerTotals(ledger) {
+  let expense = 0;
+  let income = 0;
+  for (const entry of ledger) {
+    const amt = Number(entry.amount) || 0;
+    if (!entry.label.trim() && !amt) continue;
+    if (entry.kind === "income") income += amt;
+    else expense += amt;
+  }
+  return { expense, income, net: income - expense };
+}
+
+function formatWon(amount) {
+  return `${Math.abs(amount).toLocaleString("ko-KR")}원`;
+}
+
+function formatLedgerHeaderSummary(totals) {
+  if (!totals.expense && !totals.income) return "기록 없음";
+  const parts = [];
+  if (totals.expense) parts.push(`−${formatWon(totals.expense)}`);
+  if (totals.income) parts.push(`+${formatWon(totals.income)}`);
+  return parts.join(" · ");
+}
+
+function isLedgerOpen(date, weeklySync) {
+  if (!weeklySync) return true;
+  return ledgerOpenDates.has(dateKey(date));
+}
+
+function addLedgerRow(date) {
+  const data = getDayData(date);
+  if (data.ledger.length >= LEDGER_ROWS_MAX) return false;
+  data.ledger.push(emptyLedgerEntry());
+  saveData();
+  return true;
+}
+
+function removeLedgerRow(date, index) {
+  const data = getDayData(date);
+  if (data.ledger.length <= LEDGER_ROWS_MIN) return false;
+  data.ledger.splice(index, 1);
+  saveData();
+  return true;
 }
 
 function emptySee() {
@@ -691,7 +770,56 @@ function buildPlanSyncColumnHTML(days) {
     <div class="plan-sync-actions">
       <button type="button" class="plan-sync-add" ${canAdd ? "" : "disabled"} title="모든 요일에 행 추가" aria-label="모든 요일에 행 추가">+</button>
     </div>
+    <div class="plan-sync-ledger" aria-hidden="true"></div>
     <div class="plan-sync-see" aria-hidden="true"></div>`;
+}
+
+function buildLedgerSectionHTML(date, ledger, options = {}) {
+  const weeklySync = options.weeklySync === true;
+  const isOpen = isLedgerOpen(date, weeklySync);
+  const totals = getLedgerTotals(ledger);
+  const canRemove = ledger.length > LEDGER_ROWS_MIN;
+  const canAdd = ledger.length < LEDGER_ROWS_MAX;
+  const summary = formatLedgerHeaderSummary(totals);
+
+  const rows = ledger.map((entry, i) => {
+    const kindLabel = entry.kind === "income" ? "+" : "−";
+    const kindTitle = entry.kind === "income" ? "수입 (클릭하여 지출)" : "지출 (클릭하여 수입)";
+    return `
+      <div class="ledger-row" data-index="${i}">
+        <input type="text" class="ledger-label" value="${escapeAttr(entry.label)}" placeholder="항목" aria-label="항목">
+        <button type="button" class="ledger-kind" data-kind="${entry.kind}" title="${kindTitle}" aria-label="${kindTitle}">${kindLabel}</button>
+        <input type="text" class="ledger-amount" inputmode="numeric" value="${entry.amount ? entry.amount : ""}" placeholder="0" aria-label="금액">
+        <button type="button" class="row-del-btn ledger-row-del" data-index="${i}" aria-label="내역 삭제" title="삭제" ${canRemove ? "" : "disabled"}>×</button>
+      </div>`;
+  }).join("");
+
+  return `
+    <section class="week-col-ledger${isOpen ? " is-open" : ""}">
+      <button type="button" class="ledger-toggle" aria-expanded="${isOpen}">
+        <span class="lbl-ledger">가계부</span>
+        <span class="ledger-summary">${summary}</span>
+        <span class="ledger-chevron" aria-hidden="true">▾</span>
+      </button>
+      <div class="ledger-body">
+        <div class="ledger-rows">${rows}</div>
+        <button type="button" class="ledger-add-btn" ${canAdd ? "" : "disabled"}>+ 내역</button>
+        <div class="ledger-totals">
+          <span class="ledger-total-expense">지출 ${formatWon(totals.expense)}</span>
+          <span class="ledger-total-income">수입 ${formatWon(totals.income)}</span>
+        </div>
+      </div>
+    </section>`;
+}
+
+function updateLedgerUI(col, ledger) {
+  const totals = getLedgerTotals(ledger);
+  const summaryEl = col.querySelector(".ledger-summary");
+  const expenseEl = col.querySelector(".ledger-total-expense");
+  const incomeEl = col.querySelector(".ledger-total-income");
+  if (summaryEl) summaryEl.textContent = formatLedgerHeaderSummary(totals);
+  if (expenseEl) expenseEl.textContent = `지출 ${formatWon(totals.expense)}`;
+  if (incomeEl) incomeEl.textContent = `수입 ${formatWon(totals.income)}`;
 }
 
 function bindPlanSyncColumn(days) {
@@ -713,6 +841,7 @@ function getDayData(date) {
   state.data.days[key].plan = migratePlanArray(state.data.days[key].plan, slotCount);
   syncDayDo(state.data.days[key]);
   state.data.days[key].see = normalizeSee(state.data.days[key].see);
+  state.data.days[key].ledger = normalizeLedger(state.data.days[key].ledger);
   return state.data.days[key];
 }
 
@@ -797,6 +926,7 @@ function buildWeekColumnHTML(date, options = {}) {
   const weeklySync = options.weeklySync === true;
   const data = getDayData(date);
   const see = normalizeSee(data.see);
+  const ledger = normalizeLedger(data.ledger);
   const di = date.getDay();
   const slots = getHourSlots(data.plan.length);
   const canRemovePlanRow = !weeklySync && data.plan.length > PLAN_SLOT_MIN;
@@ -842,6 +972,7 @@ function buildWeekColumnHTML(date, options = {}) {
       ${weeklySync ? "" : `<div class="plan-row-actions">
         <button type="button" class="plan-row-add-btn" data-plan-date="${dateKey(date)}" ${canAddPlanRow ? "" : "disabled"}>+ 행</button>
       </div>`}
+      ${buildLedgerSectionHTML(date, ledger, { weeklySync })}
       <footer class="week-col-see">
         <span class="lbl-see">SEE</span>
         <div class="see-fields">
@@ -1302,6 +1433,8 @@ function bindDayEvents(col, date) {
     });
   });
 
+  bindLedgerEvents(col, date);
+
   col.querySelectorAll(".week-hour-row").forEach((row) => {
     const i = Number(row.dataset.index);
     const check = row.querySelector(".plan-check");
@@ -1428,6 +1561,84 @@ function bindDayEvents(col, date) {
   bindSee(".see-grateful", "grateful");
   bindSee(".see-summary", "summary");
   bindEnterToNextRow(col.querySelector(".see-fields"), "input[type=text]");
+}
+
+function bindLedgerEvents(col, date) {
+  const section = col.querySelector(".week-col-ledger");
+  if (!section) return;
+
+  const data = getDayData(date);
+  const key = dateKey(date);
+
+  section.querySelector(".ledger-toggle")?.addEventListener("click", () => {
+    const open = section.classList.toggle("is-open");
+    section.querySelector(".ledger-toggle")?.setAttribute("aria-expanded", open ? "true" : "false");
+    if (open) ledgerOpenDates.add(key);
+    else ledgerOpenDates.delete(key);
+  });
+
+  section.querySelector(".ledger-add-btn")?.addEventListener("click", () => {
+    ledgerOpenDates.add(key);
+    if (addLedgerRow(date)) renderWeekly();
+  });
+
+  section.querySelectorAll(".ledger-row-del").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      if (removeLedgerRow(date, Number(btn.dataset.index))) renderWeekly();
+    });
+  });
+
+  section.querySelectorAll(".ledger-row").forEach((row) => {
+    const i = Number(row.dataset.index);
+    const labelInput = row.querySelector(".ledger-label");
+    const amountInput = row.querySelector(".ledger-amount");
+    const kindBtn = row.querySelector(".ledger-kind");
+
+    labelInput.addEventListener("input", () => {
+      data.ledger[i].label = labelInput.value;
+      persist();
+      updateLedgerUI(col, data.ledger);
+    });
+
+    amountInput.addEventListener("input", () => {
+      data.ledger[i].amount = parseLedgerAmountInput(amountInput.value);
+      persist();
+      updateLedgerUI(col, data.ledger);
+    });
+
+    amountInput.addEventListener("blur", () => {
+      const amt = data.ledger[i].amount;
+      amountInput.value = amt ? String(amt) : "";
+    });
+
+    kindBtn.addEventListener("click", () => {
+      const next = data.ledger[i].kind === "income" ? "expense" : "income";
+      data.ledger[i].kind = next;
+      kindBtn.dataset.kind = next;
+      kindBtn.textContent = next === "income" ? "+" : "−";
+      kindBtn.title = next === "income" ? "수입 (클릭하여 지출)" : "지출 (클릭하여 수입)";
+      persist();
+      updateLedgerUI(col, data.ledger);
+    });
+
+    labelInput.addEventListener("keydown", (e) => {
+      if (e.key !== "Enter" || e.shiftKey || e.altKey) return;
+      e.preventDefault();
+      amountInput.focus();
+      amountInput.select();
+    });
+
+    amountInput.addEventListener("keydown", (e) => {
+      if (e.key !== "Enter" || e.shiftKey || e.altKey) return;
+      e.preventDefault();
+      const nextRow = row.nextElementSibling;
+      const nextLabel = nextRow?.querySelector(".ledger-label");
+      if (nextLabel) {
+        nextLabel.focus();
+        nextLabel.select();
+      }
+    });
+  });
 }
 
 function renderSidebarCal(weekDays) {

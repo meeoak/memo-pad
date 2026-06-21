@@ -1094,6 +1094,12 @@ html[data-theme="dark"] .habit-day input[type="checkbox"]:checked::after {
   flex-shrink: 0;
 }
 
+.plan-sync-ledger {
+  border-top: 1px solid var(--line);
+  min-height: 28px;
+  flex-shrink: 0;
+}
+
 body.weekly-plan-sync .week-col .plan-row-del,
 body.weekly-plan-sync .week-col .plan-row-actions {
   display: none;
@@ -1360,6 +1366,179 @@ body.weekly-plan-sync .week-col .plan-row-actions {
   padding: 6px 4px 8px;
   flex-shrink: 0;
 }
+
+.week-col-ledger {
+  border-top: 1px solid var(--line);
+  flex-shrink: 0;
+  background: rgba(255, 248, 220, 0.35);
+}
+
+.ledger-toggle {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 5px 4px;
+  border: none;
+  background: transparent;
+  font-family: inherit;
+  cursor: pointer;
+  text-align: left;
+}
+
+.lbl-ledger {
+  font-size: 0.48rem;
+  letter-spacing: 0.1em;
+  color: var(--text-muted);
+  flex-shrink: 0;
+}
+
+.ledger-summary {
+  flex: 1;
+  min-width: 0;
+  font-size: 0.52rem;
+  color: var(--text);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.ledger-chevron {
+  font-size: 0.5rem;
+  color: var(--text-muted);
+  transition: transform 0.15s ease;
+  flex-shrink: 0;
+}
+
+.week-col-ledger.is-open .ledger-chevron {
+  transform: rotate(180deg);
+}
+
+.ledger-body {
+  display: none;
+  padding: 0 4px 6px;
+}
+
+.week-col-ledger.is-open .ledger-body {
+  display: block;
+}
+
+body.mobile-daily .week-col-ledger .ledger-body {
+  display: block;
+}
+
+body.mobile-daily .week-col-ledger .ledger-chevron {
+  display: none;
+}
+
+.ledger-rows {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.ledger-row {
+  display: grid;
+  grid-template-columns: 1fr 18px minmax(44px, 0.55fr) 16px;
+  align-items: center;
+  gap: 3px;
+}
+
+.ledger-label,
+.ledger-amount {
+  border: none;
+  background: var(--sheet);
+  border-radius: var(--radius-sm);
+  font-family: inherit;
+  font-size: 0.62rem;
+  padding: 3px 4px;
+  min-width: 0;
+  color: var(--text);
+}
+
+.ledger-label:focus,
+.ledger-amount:focus {
+  outline: 1px solid var(--accent);
+  outline-offset: -1px;
+}
+
+.ledger-amount {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.ledger-kind {
+  width: 18px;
+  height: 18px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--sheet);
+  font-family: inherit;
+  font-size: 0.72rem;
+  line-height: 1;
+  padding: 0;
+  cursor: pointer;
+  color: var(--text-muted);
+}
+
+.ledger-kind[data-kind="income"] {
+  color: #2e7d5a;
+  border-color: rgba(46, 125, 90, 0.35);
+  background: rgba(184, 224, 210, 0.35);
+}
+
+.ledger-kind[data-kind="expense"] {
+  color: #c45c5c;
+  border-color: rgba(196, 92, 92, 0.35);
+  background: rgba(255, 214, 165, 0.35);
+}
+
+.ledger-row:hover .ledger-row-del {
+  opacity: 1;
+}
+
+.ledger-row-del {
+  width: 16px;
+  height: 16px;
+  font-size: 0.75rem;
+}
+
+.ledger-add-btn {
+  width: 100%;
+  margin-top: 4px;
+  border: 1px dashed var(--line-dark);
+  background: transparent;
+  color: var(--text-muted);
+  font-family: inherit;
+  font-size: 0.58rem;
+  padding: 2px 6px;
+  border-radius: var(--radius-pill);
+  cursor: pointer;
+}
+
+.ledger-add-btn:hover:not(:disabled) {
+  background: var(--bg);
+  color: var(--text);
+}
+
+.ledger-add-btn:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+
+.ledger-totals {
+  display: flex;
+  justify-content: space-between;
+  gap: 4px;
+  margin-top: 4px;
+  font-size: 0.5rem;
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.ledger-total-expense { color: #c45c5c; }
+.ledger-total-income { color: #2e7d5a; }
 
 .lbl-see {
   font-size: 0.48rem;
