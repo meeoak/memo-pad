@@ -29,6 +29,7 @@ const els = {
   lifeList: document.getElementById("lifeList"),
   habitTracker: document.getElementById("habitTracker"),
   sidebarCal: document.getElementById("sidebarCal"),
+  planSyncCol: document.getElementById("planSyncCol"),
   weeklyColumns: document.getElementById("weeklyColumns"),
   progressLabel: document.getElementById("progressLabel"),
   progressFill: document.getElementById("progressFill"),
@@ -585,6 +586,67 @@ function removePlanRow(date, index) {
   return true;
 }
 
+function getWeekPlanSlotCount(days) {
+  return Math.max(...days.map((d) => getDayData(d).plan.length));
+}
+
+function addPlanRowsForDays(days) {
+  if (days.some((d) => getDayData(d).plan.length >= PLAN_SLOT_MAX)) return false;
+  days.forEach((date) => {
+    const data = getDayData(date);
+    data.plan.push(emptyPlanItem());
+    syncDayDo(data);
+  });
+  saveData();
+  return true;
+}
+
+function removePlanRowForDays(days, index) {
+  if (days.some((d) => getDayData(d).plan.length <= PLAN_SLOT_MIN)) return false;
+  days.forEach((date) => {
+    const data = getDayData(date);
+    if (index < 0 || index >= data.plan.length) return;
+    const slots = getHourSlots(data.plan.length);
+    const removedKey = slots[index]?.key;
+    data.plan.splice(index, 1);
+    if (removedKey && data.do[removedKey]) delete data.do[removedKey];
+    syncDayDo(data);
+  });
+  saveData();
+  return true;
+}
+
+function buildPlanSyncColumnHTML(days) {
+  const slotCount = getWeekPlanSlotCount(days);
+  const canRemove = days.every((d) => getDayData(d).plan.length > PLAN_SLOT_MIN);
+  const canAdd = days.every((d) => getDayData(d).plan.length < PLAN_SLOT_MAX);
+  const rows = Array.from({ length: slotCount }, (_, i) => `
+    <div class="plan-sync-row">
+      <button type="button" class="row-del-btn plan-sync-del" data-index="${i}" aria-label="모든 요일에서 행 삭제" title="모든 요일에서 행 삭제" ${canRemove ? "" : "disabled"}>×</button>
+    </div>`).join("");
+
+  return `
+    <div class="plan-sync-head">전체</div>
+    <div class="plan-sync-label">행</div>
+    <div class="plan-sync-rows">${rows}</div>
+    <div class="plan-sync-actions">
+      <button type="button" class="plan-sync-add" ${canAdd ? "" : "disabled"} title="모든 요일에 행 추가" aria-label="모든 요일에 행 추가">+</button>
+    </div>
+    <div class="plan-sync-see" aria-hidden="true"></div>`;
+}
+
+function bindPlanSyncColumn(days) {
+  if (!els.planSyncCol) return;
+  els.planSyncCol.querySelectorAll(".plan-sync-del").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      if (removePlanRowForDays(days, Number(btn.dataset.index))) renderWeekly();
+    });
+  });
+  els.planSyncCol.querySelector(".plan-sync-add")?.addEventListener("click", () => {
+    if (addPlanRowsForDays(days)) renderWeekly();
+  });
+}
+
 function getDayData(date) {
   const key = dateKey(date);
   if (!state.data.days[key]) state.data.days[key] = emptyDayData();
@@ -672,13 +734,14 @@ function updateLabel() {
   if (els.btnNext) els.btnNext.setAttribute("aria-label", "다음 주");
 }
 
-function buildWeekColumnHTML(date) {
+function buildWeekColumnHTML(date, options = {}) {
+  const weeklySync = options.weeklySync === true;
   const data = getDayData(date);
   const see = normalizeSee(data.see);
   const di = date.getDay();
   const slots = getHourSlots(data.plan.length);
-  const canRemovePlanRow = data.plan.length > PLAN_SLOT_MIN;
-  const canAddPlanRow = data.plan.length < PLAN_SLOT_MAX;
+  const canRemovePlanRow = !weeklySync && data.plan.length > PLAN_SLOT_MIN;
+  const canAddPlanRow = !weeklySync && data.plan.length < PLAN_SLOT_MAX;
   const headCls = ["week-col-head", di === 6 ? "sat" : "", di === 0 ? "sun" : "", isToday(date) ? "today" : ""].filter(Boolean).join(" ");
 
   const rows = slots.map((s, i) => {
@@ -717,9 +780,9 @@ function buildWeekColumnHTML(date) {
       </header>
       <div class="week-col-labels"><span class="lbl-spacer"></span><span class="lbl-plan">PLAN</span></div>
       <div class="week-col-rows">${rows}</div>
-      <div class="plan-row-actions">
+      ${weeklySync ? "" : `<div class="plan-row-actions">
         <button type="button" class="plan-row-add-btn" data-plan-date="${dateKey(date)}" ${canAddPlanRow ? "" : "disabled"}>+ 행</button>
-      </div>
+      </div>`}
       <footer class="week-col-see">
         <span class="lbl-see">SEE</span>
         <div class="see-fields">
@@ -737,6 +800,7 @@ function renderWeekly() {
   const week = getWeekData(state.currentDate);
 
   document.body.classList.toggle("mobile-daily", isMobileView());
+  document.body.classList.toggle("weekly-plan-sync", !isMobileView());
 
   renderTagList(els.workList, week.work, "work");
   renderTagList(els.lifeList, week.life, "life");
@@ -752,7 +816,19 @@ function renderWeekly() {
   renderSidebarCal(weekDays);
   renderDeferredPanel(weekDays);
 
-  els.weeklyColumns.innerHTML = visibleDays.map(buildWeekColumnHTML).join("");
+  const weeklySync = !isMobileView();
+  if (els.planSyncCol) {
+    if (weeklySync) {
+      els.planSyncCol.hidden = false;
+      els.planSyncCol.innerHTML = buildPlanSyncColumnHTML(weekDays);
+      bindPlanSyncColumn(weekDays);
+    } else {
+      els.planSyncCol.hidden = true;
+      els.planSyncCol.innerHTML = "";
+    }
+  }
+
+  els.weeklyColumns.innerHTML = visibleDays.map((date) => buildWeekColumnHTML(date, { weeklySync })).join("");
 
   els.weeklyColumns.querySelectorAll(".week-col").forEach((col) => {
     bindDayEvents(col, parseDate(col.dataset.date));

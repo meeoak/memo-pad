@@ -949,6 +949,106 @@ html[data-theme="dark"] .habit-day input[type="checkbox"]:checked::after {
 }
 
 /* 7 day columns */
+.weekly-days-wrap {
+  display: flex;
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  background: var(--top-bg);
+}
+
+.plan-sync-col {
+  flex-shrink: 0;
+  width: 34px;
+  display: flex;
+  flex-direction: column;
+  padding: 8px 2px 10px 8px;
+  border-right: 1px dashed var(--line-dark);
+}
+
+.plan-sync-head {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 8px 2px;
+  border-bottom: 1px solid var(--line);
+  font-size: 0.52rem;
+  letter-spacing: 0.04em;
+  color: var(--text-muted);
+  flex-shrink: 0;
+  min-height: 33px;
+}
+
+.plan-sync-label {
+  padding: 3px 2px;
+  border-bottom: 1px solid var(--line);
+  font-size: 0.48rem;
+  letter-spacing: 0.08em;
+  color: var(--text-muted);
+  text-align: center;
+  flex-shrink: 0;
+}
+
+.plan-sync-rows {
+  flex: 1;
+  min-height: 0;
+}
+
+.plan-sync-row {
+  min-height: var(--row-h);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.plan-sync-col .row-del-btn {
+  opacity: 0.55;
+}
+
+.plan-sync-col .plan-sync-row:hover .row-del-btn {
+  opacity: 1;
+}
+
+.plan-sync-actions {
+  padding: 4px 0 6px;
+  border-top: 1px dotted var(--line);
+  flex-shrink: 0;
+}
+
+.plan-sync-add {
+  width: 100%;
+  border: 1px dashed var(--line-dark);
+  background: transparent;
+  color: var(--text-muted);
+  font-family: inherit;
+  font-size: 0.72rem;
+  line-height: 1;
+  padding: 4px 0;
+  border-radius: var(--radius-pill);
+  cursor: pointer;
+}
+
+.plan-sync-add:hover:not(:disabled) {
+  background: var(--bg);
+  color: var(--text);
+}
+
+.plan-sync-add:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+
+.plan-sync-see {
+  border-top: 1px solid var(--line);
+  min-height: 88px;
+  flex-shrink: 0;
+}
+
+body.weekly-plan-sync .week-col .plan-row-del,
+body.weekly-plan-sync .week-col .plan-row-actions {
+  display: none;
+}
+
 .weekly-days {
   display: grid;
   grid-template-columns: repeat(7, 1fr);
@@ -956,8 +1056,8 @@ html[data-theme="dark"] .habit-day input[type="checkbox"]:checked::after {
   min-width: 0;
   overflow-x: auto;
   gap: 6px;
-  padding: 8px 10px 10px;
-  background: var(--top-bg);
+  padding: 8px 10px 10px 0;
+  background: transparent;
 }
 
 .week-col {
@@ -1540,9 +1640,14 @@ html[data-theme="dark"] .habit-day input[type="checkbox"]:checked::after {
 }
 
 @media (max-width: 768px) {
+  .plan-sync-col {
+    display: none !important;
+  }
+
   .weekly-days {
     grid-template-columns: 1fr;
     overflow-x: hidden;
+    padding: 8px 10px 10px;
   }
 
   .week-col {
