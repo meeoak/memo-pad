@@ -527,17 +527,16 @@ function alignDayPlanToWeek(data, weekHours) {
 }
 
 function getCanonicalWeekHours(days) {
-  const orders = new Set();
-  for (let i = 0; i < PLAN_SLOT_COUNT; i += 1) orders.add(i);
+  const hourSet = new Set();
   days.forEach((date) => {
     const data = getDayData(date);
     dedupePlanByHour(data);
     data.plan.forEach((p) => {
-      if (Number.isInteger(p.hour24)) orders.add(planHourSortOrder(p.hour24));
+      if (Number.isInteger(p.hour24)) hourSet.add(p.hour24);
     });
   });
-  const maxOrder = Math.min(Math.max(...orders, PLAN_SLOT_COUNT - 1), PLAN_SLOT_MAX - 1);
-  return Array.from({ length: maxOrder + 1 }, (_, order) => (PLAN_START_HOUR + order) % 24);
+  if (!hourSet.size) return getDefaultPlanHours();
+  return [...hourSet].sort((a, b) => planHourSortOrder(a) - planHourSortOrder(b));
 }
 
 function syncWeekPlanHours(days, persistChanges = false) {
@@ -943,7 +942,8 @@ function addPlanRowsForDays(days) {
 }
 
 function removePlanRowForDays(days, hour24) {
-  if (days.some((d) => getDayData(d).plan.length <= PLAN_SLOT_MIN)) return false;
+  const weekHours = getCanonicalWeekHours(days);
+  if (weekHours.length <= PLAN_SLOT_MIN) return false;
   let removed = false;
   days.forEach((date) => {
     if (removePlanRowByHour(date, hour24)) removed = true;
@@ -957,21 +957,23 @@ function buildPlanSyncColumnHTML(days, weekHours) {
   const addTitle = nextHour == null
     ? "더 이상 추가할 수 없음"
     : `모든 요일에 ${nextLabel.num} ${nextLabel.period} 행 추가`;
-  const canRemove = weekHours.length > PLAN_SLOT_MIN
-    && days.every((d) => getDayData(d).plan.length > PLAN_SLOT_MIN);
+  const canRemove = weekHours.length > PLAN_SLOT_MIN;
   const canAdd = nextHour != null;
-  const rows = weekHours.map((hour24) => `
-    <div class="plan-sync-row">
-      <button type="button" class="row-del-btn plan-sync-del" data-hour="${hour24}" aria-label="모든 요일에서 행 삭제" title="모든 요일에서 행 삭제" ${canRemove ? "" : "disabled"}>×</button>
-    </div>`).join("");
+  const rows = weekHours.map((hour24) => {
+    const slot = formatHourDisplay(hour24);
+    return `
+    <div class="plan-sync-row" title="${slot.num} ${slot.period} 행 삭제">
+      <button type="button" class="row-del-btn plan-sync-del" data-hour="${hour24}" aria-label="${slot.num} ${slot.period} 행 삭제" title="행 삭제" ${canRemove ? "" : "disabled"}>×</button>
+    </div>`;
+  }).join("");
 
   return `
     <div class="plan-sync-plan">
       <div class="plan-sync-head">전체</div>
-      <div class="plan-sync-label">행</div>
+      <div class="plan-sync-label">삭제</div>
       <div class="plan-sync-rows">${rows}</div>
       <div class="plan-sync-actions">
-        <button type="button" class="plan-sync-add" ${canAdd ? "" : "disabled"} title="${addTitle}">+ 행</button>
+        <button type="button" class="plan-sync-add" ${canAdd ? "" : "disabled"} title="${addTitle}">+ 행 추가</button>
       </div>
     </div>`;
 }

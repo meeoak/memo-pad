@@ -1010,8 +1010,8 @@ html[data-theme="dark"] .habit-day input[type="checkbox"]:checked::after {
 
 .plan-sync-col {
   flex-shrink: 0;
-  width: 34px;
-  padding: 8px 2px 10px 8px;
+  width: 48px;
+  padding: 8px 4px 10px 8px;
   border-right: 1px dashed var(--line-dark);
   align-self: flex-start;
 }
@@ -1058,7 +1058,10 @@ html[data-theme="dark"] .habit-day input[type="checkbox"]:checked::after {
 }
 
 .plan-sync-col .row-del-btn {
-  opacity: 0.55;
+  opacity: 0.7;
+  width: 20px;
+  height: 20px;
+  font-size: 0.9rem;
 }
 
 .plan-sync-col .plan-sync-row:hover .row-del-btn {
@@ -1066,7 +1069,7 @@ html[data-theme="dark"] .habit-day input[type="checkbox"]:checked::after {
 }
 
 .plan-sync-actions {
-  padding: 4px 0 6px;
+  padding: 6px 0 4px;
   border-top: 1px dotted var(--line);
   flex-shrink: 0;
 }
@@ -1074,14 +1077,15 @@ html[data-theme="dark"] .habit-day input[type="checkbox"]:checked::after {
 .plan-sync-add {
   width: 100%;
   border: 1px dashed var(--line-dark);
-  background: transparent;
+  background: var(--sheet);
   color: var(--text-muted);
   font-family: inherit;
-  font-size: 0.58rem;
-  line-height: 1.2;
-  padding: 4px 2px;
+  font-size: 0.52rem;
+  line-height: 1.25;
+  padding: 5px 2px;
   border-radius: var(--radius-pill);
   cursor: pointer;
+  white-space: nowrap;
 }
 
 .plan-sync-add:hover:not(:disabled) {
