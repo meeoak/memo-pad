@@ -7,7 +7,7 @@ const TAG_ROWS_MAX = 12;
 const HABIT_ROWS_MIN = 5;
 const HABIT_ROWS_MAX = 12;
 const PLAN_START_HOUR = 4;
-const PLAN_SLOT_COUNT = 21;
+const PLAN_SLOT_COUNT = 24;
 const PLAN_SLOT_MIN = 10;
 const PLAN_SLOT_MAX = 28;
 const LEDGER_ROWS_MIN = 3;
@@ -15,6 +15,7 @@ const LEDGER_ROWS_MAX = 10;
 const THEME_KEY = "planner-theme";
 
 const LEDGER_OPEN_KEY = "planner-ledger-open";
+const PLAN_RANGE_KEY = "planner-plan-range-24";
 
 function loadLedgerOpenDates() {
   try {
@@ -535,10 +536,47 @@ function getWeekPlanHours(days) {
 function getNextPlanHour(data) {
   ensurePlanHours(data);
   if (data.plan.length >= PLAN_SLOT_MAX) return null;
-  if (!data.plan.length) return PLAN_START_HOUR;
-  const maxOrder = Math.max(...data.plan.map((p) => planHourSortOrder(p.hour24)));
-  if (maxOrder >= PLAN_SLOT_MAX - 1) return null;
-  return (PLAN_START_HOUR + maxOrder + 1) % 24;
+  const existing = new Set(data.plan.map((p) => p.hour24));
+  for (let order = 0; order < PLAN_SLOT_MAX; order += 1) {
+    const hour24 = (PLAN_START_HOUR + order) % 24;
+    if (!existing.has(hour24)) return hour24;
+  }
+  return null;
+}
+
+function getNextWeekPlanHour(days) {
+  const existing = new Set(getWeekPlanHours(days));
+  if (existing.size >= PLAN_SLOT_MAX) return null;
+  for (let order = 0; order < PLAN_SLOT_MAX; order += 1) {
+    const hour24 = (PLAN_START_HOUR + order) % 24;
+    if (!existing.has(hour24)) return hour24;
+  }
+  return null;
+}
+
+function migratePlanRangeOnce() {
+  if (localStorage.getItem(PLAN_RANGE_KEY)) return;
+  let changed = false;
+  for (const key of Object.keys(state.data.days)) {
+    const day = state.data.days[key];
+    if (!Array.isArray(day.plan)) continue;
+    const existing = new Set(
+      day.plan.map((p) => normalizePlanItem(p).hour24).filter((h) => Number.isInteger(h)),
+    );
+    let dayChanged = false;
+    [1, 2, 3].forEach((hour24) => {
+      if (!existing.has(hour24)) {
+        day.plan.push(emptyPlanItem(hour24));
+        dayChanged = true;
+      }
+    });
+    if (dayChanged) {
+      sortPlanByHour(day);
+      changed = true;
+    }
+  }
+  if (changed) saveData();
+  localStorage.setItem(PLAN_RANGE_KEY, "1");
 }
 
 function syncDayDo(data) {
@@ -833,11 +871,8 @@ function removePlanRow(date, planIndex) {
 }
 
 function addPlanRowsForDays(days) {
-  const weekHours = getWeekPlanHours(days);
-  if (weekHours.length >= PLAN_SLOT_MAX) return false;
-  const maxOrder = weekHours.length ? Math.max(...weekHours.map(planHourSortOrder)) : -1;
-  if (maxOrder >= PLAN_SLOT_MAX - 1) return false;
-  const hour24 = (PLAN_START_HOUR + maxOrder + 1) % 24;
+  const hour24 = getNextWeekPlanHour(days);
+  if (hour24 == null) return false;
 
   days.forEach((date) => {
     const data = getDayData(date);
@@ -862,8 +897,13 @@ function removePlanRowForDays(days, hour24) {
 
 function buildPlanSyncColumnHTML(days) {
   const weekHours = getWeekPlanHours(days);
+  const nextHour = getNextWeekPlanHour(days);
+  const nextLabel = nextHour == null ? "" : formatHourDisplay(nextHour);
+  const addTitle = nextHour == null
+    ? "더 이상 추가할 수 없음"
+    : `모든 요일에 ${nextLabel.num}${nextLabel.showPeriod ? ` ${nextLabel.period}` : ""} 행 추가`;
   const canRemove = days.every((d) => getDayData(d).plan.length > PLAN_SLOT_MIN);
-  const canAdd = weekHours.length < PLAN_SLOT_MAX;
+  const canAdd = nextHour != null;
   const rows = weekHours.map((hour24) => `
     <div class="plan-sync-row">
       <button type="button" class="row-del-btn plan-sync-del" data-hour="${hour24}" aria-label="모든 요일에서 행 삭제" title="모든 요일에서 행 삭제" ${canRemove ? "" : "disabled"}>×</button>
@@ -874,7 +914,7 @@ function buildPlanSyncColumnHTML(days) {
     <div class="plan-sync-label">행</div>
     <div class="plan-sync-rows">${rows}</div>
     <div class="plan-sync-actions">
-      <button type="button" class="plan-sync-add" ${canAdd ? "" : "disabled"} title="모든 요일에 행 추가">+ 행</button>
+      <button type="button" class="plan-sync-add" ${canAdd ? "" : "disabled"} title="${addTitle}">+ 행</button>
     </div>
     <div class="plan-sync-ledger" aria-hidden="true"></div>
     <div class="plan-sync-see" aria-hidden="true"></div>`;
@@ -1037,8 +1077,9 @@ function buildWeekColumnHTML(date, options = {}) {
   const ledger = normalizeLedger(data.ledger);
   const di = date.getDay();
   const slotViews = getPlanSlotViews(data);
+  const nextHour = getNextPlanHour(data);
   const canRemovePlanRow = !weeklySync && data.plan.length > PLAN_SLOT_MIN;
-  const canAddPlanRow = !weeklySync && data.plan.length < PLAN_SLOT_MAX;
+  const canAddPlanRow = nextHour != null;
   const headCls = ["week-col-head", di === 6 ? "sat" : "", di === 0 ? "sun" : "", isToday(date) ? "today" : ""].filter(Boolean).join(" ");
 
   const rows = slotViews.map(({ planIndex, item, num, period, showPeriod, key }) => {
@@ -1077,9 +1118,9 @@ function buildWeekColumnHTML(date, options = {}) {
       </header>
       <div class="week-col-labels"><span class="lbl-spacer"></span><span class="lbl-plan">PLAN</span></div>
       <div class="week-col-rows">${rows}</div>
-      ${weeklySync ? "" : `<div class="plan-row-actions">
-        <button type="button" class="plan-row-add-btn" data-plan-date="${dateKey(date)}" ${canAddPlanRow ? "" : "disabled"}>+ 행</button>
-      </div>`}
+      <div class="plan-row-actions">
+        <button type="button" class="plan-row-add-btn" data-plan-date="${dateKey(date)}" ${canAddPlanRow ? "" : "disabled"} title="${canAddPlanRow && nextHour != null ? `${formatHourDisplay(nextHour).num} 행 추가` : "더 이상 추가할 수 없음"}">+ 행</button>
+      </div>
       ${buildLedgerSectionHTML(date, ledger, { weeklySync })}
       <footer class="week-col-see">
         <span class="lbl-see">SEE</span>
@@ -1959,6 +2000,7 @@ function initTheme() {
 initTheme();
 plannerDialog.init();
 MemoStyle.init({ onPersist: persist });
+migratePlanRangeOnce();
 renderWeekly();
 
 if (els.saveStatus) {
