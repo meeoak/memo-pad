@@ -839,6 +839,56 @@ html[data-theme="dark"] .habit-day input[type="checkbox"]:checked::after {
   justify-self: stretch;
   width: 100%;
   max-width: none;
+  display: flex;
+  flex-direction: column;
+}
+
+.cal-progress {
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px dotted var(--line);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.cal-progress-item {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.cal-progress-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 6px;
+}
+
+.cal-progress-title {
+  font-size: 0.62rem;
+  letter-spacing: 0.04em;
+  color: var(--text);
+  font-variant-numeric: tabular-nums;
+}
+
+.cal-progress-pct {
+  font-size: 0.58rem;
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.cal-progress-bar {
+  width: 100%;
+  height: 7px;
+}
+
+.cal-progress-fill-year {
+  background: linear-gradient(90deg, #ffd6a5, #ffb347);
+}
+
+.cal-progress-fill-week {
+  background: linear-gradient(90deg, #b8e0d2, #7ec8a4);
 }
 
 .mini-month-title {

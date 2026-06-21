@@ -161,6 +161,65 @@ function updateWeekProgress(weekDays = getWeekDays(state.currentDate)) {
   if (els.progressFill) els.progressFill.style.width = `${percent}%`;
 }
 
+function getDaysInYear(year) {
+  return new Date(year, 1, 29).getDate() === 29 ? 366 : 365;
+}
+
+function getDayOfYear(date) {
+  const d = startOfDay(date);
+  const jan1 = new Date(d.getFullYear(), 0, 1);
+  return Math.floor((d - jan1) / 86400000) + 1;
+}
+
+function getISOWeekNumber(date) {
+  const d = startOfDay(date);
+  d.setHours(12, 0, 0, 0);
+  const day = (d.getDay() + 6) % 7;
+  d.setDate(d.getDate() - day + 3);
+  const jan4 = new Date(d.getFullYear(), 0, 4);
+  const jan4day = (jan4.getDay() + 6) % 7;
+  jan4.setDate(jan4.getDate() - jan4day);
+  return 1 + Math.round((d - jan4) / 604800000);
+}
+
+function getISOWeeksInYear(year) {
+  const lastWeek = getISOWeekNumber(new Date(year, 11, 31));
+  return lastWeek === 1 ? 52 : lastWeek;
+}
+
+function buildCalProgressHTML(date) {
+  const year = date.getFullYear();
+  const dayOfYear = getDayOfYear(date);
+  const daysInYear = getDaysInYear(year);
+  const dayPct = Math.min(100, Math.round((dayOfYear / daysInYear) * 1000) / 10);
+
+  const weekNum = getISOWeekNumber(date);
+  const weeksInYear = getISOWeeksInYear(year);
+  const weekPct = Math.min(100, Math.round((weekNum / weeksInYear) * 1000) / 10);
+
+  return `
+    <div class="cal-progress" aria-label="올해 진행">
+      <div class="cal-progress-item">
+        <div class="cal-progress-head">
+          <span class="cal-progress-title">${dayOfYear} / ${daysInYear}일</span>
+          <span class="cal-progress-pct">${dayPct}%</span>
+        </div>
+        <div class="progress-bar cal-progress-bar" role="progressbar" aria-valuenow="${dayOfYear}" aria-valuemin="1" aria-valuemax="${daysInYear}" aria-label="올해 ${dayOfYear}일째">
+          <div class="progress-fill cal-progress-fill cal-progress-fill-year" style="width:${dayPct}%"></div>
+        </div>
+      </div>
+      <div class="cal-progress-item">
+        <div class="cal-progress-head">
+          <span class="cal-progress-title">${weekNum} / ${weeksInYear}주</span>
+          <span class="cal-progress-pct">${weekPct}%</span>
+        </div>
+        <div class="progress-bar cal-progress-bar" role="progressbar" aria-valuenow="${weekNum}" aria-valuemin="1" aria-valuemax="${weeksInYear}" aria-label="올해 ${weekNum}주차">
+          <div class="progress-fill cal-progress-fill cal-progress-fill-week" style="width:${weekPct}%"></div>
+        </div>
+      </div>
+    </div>`;
+}
+
 function findEmptyPlanSlot(dayData, preferredIndex) {
   if (!dayData.plan[preferredIndex]?.text.trim()) return preferredIndex;
   return dayData.plan.findIndex((p) => !p.text.trim());
@@ -1377,10 +1436,11 @@ function renderSidebarCal(weekDays) {
   const month = day1.getMonth();
   const weekKeys = new Set(weekDays.map(dateKey));
 
-  els.sidebarCal.innerHTML = buildMiniMonth(year, month, {
-    highlightWeek: weekKeys,
-    onClick: true,
-  });
+  els.sidebarCal.innerHTML =
+    buildMiniMonth(year, month, {
+      highlightWeek: weekKeys,
+      onClick: true,
+    }) + buildCalProgressHTML(state.currentDate);
 
   els.sidebarCal.querySelectorAll("[data-date]").forEach((el) => {
     const go = () => {
