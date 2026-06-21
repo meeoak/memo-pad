@@ -1071,9 +1071,9 @@ html[data-theme="dark"] .habit-day input[type="checkbox"]:checked::after {
   background: transparent;
   color: var(--text-muted);
   font-family: inherit;
-  font-size: 0.72rem;
-  line-height: 1;
-  padding: 4px 0;
+  font-size: 0.58rem;
+  line-height: 1.2;
+  padding: 4px 2px;
   border-radius: var(--radius-pill);
   cursor: pointer;
 }

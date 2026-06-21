@@ -240,8 +240,9 @@ function buildCalProgressHTML(date) {
     </div>`;
 }
 
-function findEmptyPlanSlot(dayData, preferredIndex) {
-  if (!dayData.plan[preferredIndex]?.text.trim()) return preferredIndex;
+function findEmptyPlanSlot(dayData, preferredHour24) {
+  const preferredIndex = dayData.plan.findIndex((p) => p.hour24 === preferredHour24);
+  if (preferredIndex >= 0 && !dayData.plan[preferredIndex]?.text.trim()) return preferredIndex;
   return dayData.plan.findIndex((p) => !p.text.trim());
 }
 
@@ -254,7 +255,7 @@ function carryDayIncompleteToTomorrow(date) {
     const item = normalizePlanItem(fromData.plan[i]);
     if (!item.text.trim() || item.done) continue;
 
-    const targetIndex = findEmptyPlanSlot(toData, i);
+    const targetIndex = findEmptyPlanSlot(toData, item.hour24);
     if (targetIndex < 0) continue;
 
     toData.plan[targetIndex] = {
@@ -263,8 +264,10 @@ function carryDayIncompleteToTomorrow(date) {
       highlight: item.highlight,
       defer: "tomorrow",
       deferFrom: { date: dateKey(date), index: i },
+      hour24: toData.plan[targetIndex].hour24,
+      style: item.style,
     };
-    fromData.plan[i] = emptyPlanItem();
+    fromData.plan[i] = emptyPlanItem(item.hour24);
     moved++;
   }
 
@@ -283,7 +286,7 @@ function carryWeekIncompleteToNextWeek(weekDays) {
       const item = normalizePlanItem(fromData.plan[i]);
       if (!item.text.trim() || item.done) continue;
 
-      const targetIndex = findEmptyPlanSlot(toData, i);
+      const targetIndex = findEmptyPlanSlot(toData, item.hour24);
       if (targetIndex < 0) continue;
 
       toData.plan[targetIndex] = {
@@ -292,8 +295,10 @@ function carryWeekIncompleteToNextWeek(weekDays) {
         highlight: item.highlight,
         defer: "tomorrow",
         deferFrom: { date: dateKey(date), index: i },
+        hour24: toData.plan[targetIndex].hour24,
+        style: item.style,
       };
-      fromData.plan[i] = emptyPlanItem();
+      fromData.plan[i] = emptyPlanItem(item.hour24);
       moved++;
     }
   }
@@ -454,6 +459,10 @@ function copyWeekPanelsToNextWeek(weekDays) {
   return copyWeekPanels(state.currentDate, addDays(weekDays[0], 7));
 }
 
+function planHourSortOrder(hour24) {
+  return (hour24 - PLAN_START_HOUR + 24) % 24;
+}
+
 function getHourSlots(count = PLAN_SLOT_COUNT) {
   const slotCount = Math.max(PLAN_SLOT_MIN, Math.min(PLAN_SLOT_MAX, count));
   return Array.from({ length: slotCount }, (_, i) => {
@@ -467,11 +476,77 @@ function getPlanSlotCount(plan) {
   return Math.max(PLAN_SLOT_MIN, Math.min(PLAN_SLOT_MAX, len || PLAN_SLOT_COUNT));
 }
 
+function sortPlanByHour(data) {
+  data.plan.sort((a, b) => planHourSortOrder(a.hour24) - planHourSortOrder(b.hour24));
+}
+
+function migrateLegacyPlanHours(data) {
+  const plan = data.plan;
+  if (!Array.isArray(plan) || !plan.length) return false;
+  if (plan.some((p) => Number.isInteger(normalizePlanItem(p).hour24))) return false;
+
+  const slots = getHourSlots(plan.length);
+  data.plan = plan.map((item, i) => normalizePlanItem(item, slots[i]?.hour24));
+  const existingHours = new Set(data.plan.map((p) => p.hour24));
+  getHourSlots(PLAN_SLOT_COUNT).forEach((s) => {
+    if (!existingHours.has(s.hour24)) {
+      data.plan.push(emptyPlanItem(s.hour24));
+    }
+  });
+  sortPlanByHour(data);
+  return true;
+}
+
+function ensurePlanHours(data) {
+  if (!Array.isArray(data.plan) || !data.plan.length) {
+    data.plan = getHourSlots(PLAN_SLOT_COUNT).map((s) => emptyPlanItem(s.hour24));
+    return;
+  }
+  migrateLegacyPlanHours(data);
+  data.plan = data.plan.map((item, i) => {
+    const normalized = normalizePlanItem(item);
+    if (!Number.isInteger(normalized.hour24)) {
+      normalized.hour24 = getHourSlots(data.plan.length)[i]?.hour24 ?? PLAN_START_HOUR;
+    }
+    return normalized;
+  });
+  sortPlanByHour(data);
+}
+
+function getPlanSlotViews(data) {
+  ensurePlanHours(data);
+  return data.plan
+    .map((item, planIndex) => {
+      const normalized = normalizePlanItem(item);
+      const slot = formatHourDisplay(normalized.hour24);
+      return { ...slot, planIndex, item: normalized };
+    })
+    .sort((a, b) => planHourSortOrder(a.hour24) - planHourSortOrder(b.hour24));
+}
+
+function getWeekPlanHours(days) {
+  const hourSet = new Set();
+  days.forEach((date) => {
+    getPlanSlotViews(getDayData(date)).forEach((view) => hourSet.add(view.hour24));
+  });
+  return [...hourSet].sort((a, b) => planHourSortOrder(a) - planHourSortOrder(b));
+}
+
+function getNextPlanHour(data) {
+  ensurePlanHours(data);
+  if (data.plan.length >= PLAN_SLOT_MAX) return null;
+  if (!data.plan.length) return PLAN_START_HOUR;
+  const maxOrder = Math.max(...data.plan.map((p) => planHourSortOrder(p.hour24)));
+  if (maxOrder >= PLAN_SLOT_MAX - 1) return null;
+  return (PLAN_START_HOUR + maxOrder + 1) % 24;
+}
+
 function syncDayDo(data) {
-  const slots = getHourSlots(data.plan.length);
+  ensurePlanHours(data);
   const nextDo = {};
-  for (const s of slots) {
-    nextDo[s.key] = data.do?.[s.key] || { cells: ["", "", "", ""], tone: "none" };
+  for (const item of data.plan) {
+    const key = String(item.hour24);
+    nextDo[key] = data.do?.[key] || { cells: ["", "", "", ""], tone: "none" };
   }
   data.do = nextDo;
 }
@@ -492,19 +567,25 @@ function migratePlanArray(plan, slotCount = PLAN_SLOT_COUNT) {
   const normalized = Array.isArray(plan) ? plan.map(normalizePlanItem) : [];
 
   if (normalized.length === 24 && slotCount !== 24) {
-    return slots.map((s) => normalizePlanItem(normalized[oldPlanIndexForHour(s.hour24)]));
+    return slots.map((s) => normalizePlanItem(normalized[oldPlanIndexForHour(s.hour24)], s.hour24));
   }
 
-  if (normalized.length === slotCount) return normalized;
-  if (normalized.length > slotCount) return normalized.slice(0, slotCount);
+  if (normalized.some((p) => Number.isInteger(p.hour24))) {
+    return normalized.map((item) => normalizePlanItem(item));
+  }
 
-  return Array.from({ length: slotCount }, (_, i) => normalized[i] || emptyPlanItem());
+  if (normalized.length === slotCount) {
+    return normalized.map((item, i) => normalizePlanItem(item, slots[i].hour24));
+  }
+  if (normalized.length > slotCount) return normalized.slice(0, slotCount).map((item, i) => normalizePlanItem(item, slots[i]?.hour24));
+
+  return Array.from({ length: slotCount }, (_, i) => normalizePlanItem(normalized[i], slots[i].hour24));
 }
 
 function emptyDayData() {
-  const slots = getHourSlots();
+  const slots = getHourSlots(PLAN_SLOT_COUNT);
   return {
-    plan: slots.map(() => emptyPlanItem()),
+    plan: slots.map((s) => emptyPlanItem(s.hour24)),
     do: Object.fromEntries(slots.map((s) => [s.key, { cells: ["", "", "", ""], tone: "none" }])),
     see: emptySee(),
     ledger: emptyLedger(),
@@ -720,62 +801,72 @@ function removeHabitRow(index) {
 
 function addPlanRow(date) {
   const data = getDayData(date);
-  if (data.plan.length >= PLAN_SLOT_MAX) return false;
-  data.plan.push(emptyPlanItem());
+  const nextHour = getNextPlanHour(data);
+  if (nextHour == null) return false;
+  data.plan.push(emptyPlanItem(nextHour));
+  sortPlanByHour(data);
   syncDayDo(data);
   saveData();
   return true;
 }
 
-function removePlanRow(date, index) {
+function removePlanRowByHour(date, hour24) {
   const data = getDayData(date);
+  ensurePlanHours(data);
   if (data.plan.length <= PLAN_SLOT_MIN) return false;
-  const slots = getHourSlots(data.plan.length);
-  const removedKey = slots[index]?.key;
+  const index = data.plan.findIndex((p) => p.hour24 === hour24);
+  if (index < 0) return false;
+  const removedKey = String(hour24);
   data.plan.splice(index, 1);
-  if (removedKey && data.do[removedKey]) delete data.do[removedKey];
+  if (data.do[removedKey]) delete data.do[removedKey];
   syncDayDo(data);
   saveData();
   return true;
 }
 
-function getWeekPlanSlotCount(days) {
-  return Math.max(...days.map((d) => getDayData(d).plan.length));
+function removePlanRow(date, planIndex) {
+  const data = getDayData(date);
+  ensurePlanHours(data);
+  const hour24 = data.plan[planIndex]?.hour24;
+  if (!Number.isInteger(hour24)) return false;
+  return removePlanRowByHour(date, hour24);
 }
 
 function addPlanRowsForDays(days) {
-  if (days.some((d) => getDayData(d).plan.length >= PLAN_SLOT_MAX)) return false;
+  const weekHours = getWeekPlanHours(days);
+  if (weekHours.length >= PLAN_SLOT_MAX) return false;
+  const maxOrder = weekHours.length ? Math.max(...weekHours.map(planHourSortOrder)) : -1;
+  if (maxOrder >= PLAN_SLOT_MAX - 1) return false;
+  const hour24 = (PLAN_START_HOUR + maxOrder + 1) % 24;
+
   days.forEach((date) => {
     const data = getDayData(date);
-    data.plan.push(emptyPlanItem());
+    if (data.plan.some((p) => p.hour24 === hour24)) return;
+    if (data.plan.length >= PLAN_SLOT_MAX) return;
+    data.plan.push(emptyPlanItem(hour24));
+    sortPlanByHour(data);
     syncDayDo(data);
   });
   saveData();
   return true;
 }
 
-function removePlanRowForDays(days, index) {
+function removePlanRowForDays(days, hour24) {
   if (days.some((d) => getDayData(d).plan.length <= PLAN_SLOT_MIN)) return false;
+  let removed = false;
   days.forEach((date) => {
-    const data = getDayData(date);
-    if (index < 0 || index >= data.plan.length) return;
-    const slots = getHourSlots(data.plan.length);
-    const removedKey = slots[index]?.key;
-    data.plan.splice(index, 1);
-    if (removedKey && data.do[removedKey]) delete data.do[removedKey];
-    syncDayDo(data);
+    if (removePlanRowByHour(date, hour24)) removed = true;
   });
-  saveData();
-  return true;
+  return removed;
 }
 
 function buildPlanSyncColumnHTML(days) {
-  const slotCount = getWeekPlanSlotCount(days);
+  const weekHours = getWeekPlanHours(days);
   const canRemove = days.every((d) => getDayData(d).plan.length > PLAN_SLOT_MIN);
-  const canAdd = days.every((d) => getDayData(d).plan.length < PLAN_SLOT_MAX);
-  const rows = Array.from({ length: slotCount }, (_, i) => `
+  const canAdd = weekHours.length < PLAN_SLOT_MAX;
+  const rows = weekHours.map((hour24) => `
     <div class="plan-sync-row">
-      <button type="button" class="row-del-btn plan-sync-del" data-index="${i}" aria-label="모든 요일에서 행 삭제" title="모든 요일에서 행 삭제" ${canRemove ? "" : "disabled"}>×</button>
+      <button type="button" class="row-del-btn plan-sync-del" data-hour="${hour24}" aria-label="모든 요일에서 행 삭제" title="모든 요일에서 행 삭제" ${canRemove ? "" : "disabled"}>×</button>
     </div>`).join("");
 
   return `
@@ -783,7 +874,7 @@ function buildPlanSyncColumnHTML(days) {
     <div class="plan-sync-label">행</div>
     <div class="plan-sync-rows">${rows}</div>
     <div class="plan-sync-actions">
-      <button type="button" class="plan-sync-add" ${canAdd ? "" : "disabled"} title="모든 요일에 행 추가" aria-label="모든 요일에 행 추가">+</button>
+      <button type="button" class="plan-sync-add" ${canAdd ? "" : "disabled"} title="모든 요일에 행 추가">+ 행</button>
     </div>
     <div class="plan-sync-ledger" aria-hidden="true"></div>
     <div class="plan-sync-see" aria-hidden="true"></div>`;
@@ -840,7 +931,7 @@ function bindPlanSyncColumn(days) {
   if (!els.planSyncCol) return;
   els.planSyncCol.querySelectorAll(".plan-sync-del").forEach((btn) => {
     btn.addEventListener("click", () => {
-      if (removePlanRowForDays(days, Number(btn.dataset.index))) renderWeekly();
+      if (removePlanRowForDays(days, Number(btn.dataset.hour))) renderWeekly();
     });
   });
   els.planSyncCol.querySelector(".plan-sync-add")?.addEventListener("click", () => {
@@ -851,12 +942,15 @@ function bindPlanSyncColumn(days) {
 function getDayData(date) {
   const key = dateKey(date);
   if (!state.data.days[key]) state.data.days[key] = emptyDayData();
-  const slotCount = getPlanSlotCount(state.data.days[key].plan);
-  state.data.days[key].plan = migratePlanArray(state.data.days[key].plan, slotCount);
-  syncDayDo(state.data.days[key]);
-  state.data.days[key].see = normalizeSee(state.data.days[key].see);
-  state.data.days[key].ledger = normalizeLedger(state.data.days[key].ledger);
-  return state.data.days[key];
+  const day = state.data.days[key];
+  if (!day.plan.some((p) => Number.isInteger(normalizePlanItem(p).hour24))) {
+    day.plan = migratePlanArray(day.plan, getPlanSlotCount(day.plan));
+  }
+  ensurePlanHours(day);
+  syncDayDo(day);
+  day.see = normalizeSee(day.see);
+  day.ledger = normalizeLedger(day.ledger);
+  return day;
 }
 
 function getWeekData(date) {
@@ -942,24 +1036,24 @@ function buildWeekColumnHTML(date, options = {}) {
   const see = normalizeSee(data.see);
   const ledger = normalizeLedger(data.ledger);
   const di = date.getDay();
-  const slots = getHourSlots(data.plan.length);
+  const slotViews = getPlanSlotViews(data);
   const canRemovePlanRow = !weeklySync && data.plan.length > PLAN_SLOT_MIN;
   const canAddPlanRow = !weeklySync && data.plan.length < PLAN_SLOT_MAX;
   const headCls = ["week-col-head", di === 6 ? "sat" : "", di === 0 ? "sun" : "", isToday(date) ? "today" : ""].filter(Boolean).join(" ");
 
-  const rows = slots.map((s, i) => {
-    const plan = normalizePlanItem(data.plan[i]);
+  const rows = slotViews.map(({ planIndex, item, num, period, showPeriod, key }) => {
+    const plan = item;
     const rowCls = planRowClasses(plan);
-    const periodHtml = s.showPeriod ? `<span class="time-period">${s.period}</span>` : `<span class="time-period"></span>`;
+    const periodHtml = showPeriod ? `<span class="time-period">${period}</span>` : `<span class="time-period"></span>`;
     const timeCell = plan.text.trim()
-      ? `<div class="cell-time drag-handle" draggable="true" title="드래그하여 이동"><span class="time-num">${s.num}</span>${periodHtml}</div>`
-      : `<div class="cell-time"><span class="time-num">${s.num}</span>${periodHtml}</div>`;
+      ? `<div class="cell-time drag-handle" draggable="true" title="드래그하여 이동"><span class="time-num">${num}</span>${periodHtml}</div>`
+      : `<div class="cell-time"><span class="time-num">${num}</span>${periodHtml}</div>`;
     const delBtn = canRemovePlanRow
-      ? `<button type="button" class="row-del-btn plan-row-del" data-plan-index="${i}" aria-label="행 삭제" title="행 삭제">×</button>`
+      ? `<button type="button" class="row-del-btn plan-row-del" data-plan-index="${planIndex}" data-hour="${key}" aria-label="행 삭제" title="행 삭제">×</button>`
       : "";
 
     return `
-      <div class="${rowCls}" data-index="${i}" data-hour="${s.key}">
+      <div class="${rowCls}" data-index="${planIndex}" data-hour="${key}">
         ${timeCell}
         <div class="cell-plan">
           <label class="plan-check-wrap" title="완료">
@@ -1202,17 +1296,20 @@ function renderHabitTracker(weekDays, habits) {
   });
 }
 
-function emptyPlanItem() {
-  return { text: "", done: false, highlight: false, defer: null, deferFrom: null, style: null };
+function emptyPlanItem(hour24 = null) {
+  const item = { text: "", done: false, highlight: false, defer: null, deferFrom: null, style: null };
+  if (Number.isInteger(hour24)) item.hour24 = hour24;
+  return item;
 }
 
-function normalizePlanItem(item) {
-  if (!item) return emptyPlanItem();
+function normalizePlanItem(item, fallbackHour24 = null) {
+  if (!item) return emptyPlanItem(fallbackHour24);
   const defer = item.defer === "later" || item.defer === "tomorrow" ? item.defer : null;
   const deferFrom = item.deferFrom?.date && Number.isInteger(item.deferFrom?.index)
     ? { date: item.deferFrom.date, index: item.deferFrom.index }
     : null;
-  return {
+  const hour24 = Number.isInteger(item.hour24) ? item.hour24 : fallbackHour24;
+  const normalized = {
     text: item.text || "",
     done: !!item.done,
     highlight: !!item.highlight,
@@ -1220,12 +1317,17 @@ function normalizePlanItem(item) {
     deferFrom: item.done || !defer ? null : deferFrom,
     style: item.style ? MemoStyle.normalizeStyle(item.style) : null,
   };
+  if (Number.isInteger(hour24)) normalized.hour24 = ((hour24 % 24) + 24) % 24;
+  return normalized;
 }
 
-function formatSlotLabel(dateKeyStr, index) {
+function formatSlotLabel(dateKeyStr, planIndex) {
+  const data = getDayData(parseDate(dateKeyStr));
+  ensurePlanHours(data);
+  const item = data.plan[planIndex];
+  if (!item || !Number.isInteger(item.hour24)) return dateKeyStr;
+  const slot = formatHourDisplay(item.hour24);
   const date = parseDate(dateKeyStr);
-  const slot = getHourSlots(getDayData(date).plan.length)[index];
-  if (!slot) return dateKeyStr;
   const periodText = slot.showPeriod ? ` ${slot.period}` : "";
   return `${DAY_NAMES[date.getDay()]} ${date.getDate()} · ${slot.num}${periodText}`;
 }
@@ -1316,23 +1418,30 @@ function syncPlanRowClasses(row, plan) {
 
 function movePlanItem(fromDate, fromIndex, toDate, toIndex, deferStatus = null) {
   const fromData = getDayData(fromDate);
-  const item = fromData.plan[fromIndex];
-  if (!item?.text?.trim()) return false;
-
   const toData = getDayData(toDate);
+  ensurePlanHours(fromData);
+  ensurePlanHours(toData);
+  const fromItem = fromData.plan[fromIndex];
+  if (!fromItem?.text?.trim()) return false;
+
   const target = toData.plan[toIndex];
   const moving = {
-    text: item.text,
+    text: fromItem.text,
     done: false,
-    highlight: item.highlight,
+    highlight: fromItem.highlight,
     defer: deferStatus,
     deferFrom: deferStatus ? { date: dateKey(fromDate), index: fromIndex } : null,
+    style: fromItem.style,
+    hour24: target.hour24,
   };
 
   if (target.text.trim()) {
-    fromData.plan[fromIndex] = normalizePlanItem(target);
+    fromData.plan[fromIndex] = {
+      ...normalizePlanItem(target),
+      hour24: fromItem.hour24,
+    };
   } else {
-    fromData.plan[fromIndex] = emptyPlanItem();
+    fromData.plan[fromIndex] = emptyPlanItem(fromItem.hour24);
   }
 
   toData.plan[toIndex] = moving;
@@ -1341,13 +1450,23 @@ function movePlanItem(fromDate, fromIndex, toDate, toIndex, deferStatus = null) 
 }
 
 function deferPlanToTomorrow(date, index) {
-  return movePlanItem(date, index, addDays(date, 1), index, "tomorrow");
+  const data = getDayData(date);
+  const hour24 = data.plan[index]?.hour24;
+  if (!Number.isInteger(hour24)) return false;
+  const tomorrow = addDays(date, 1);
+  const toIndex = getDayData(tomorrow).plan.findIndex((p) => p.hour24 === hour24);
+  if (toIndex < 0) return false;
+  return movePlanItem(date, index, tomorrow, toIndex, "tomorrow");
 }
 
 function deferPlanToday(date, index) {
   const data = getDayData(date);
-  if (index >= data.plan.length - 1) return false;
-  return movePlanItem(date, index, date, index + 1, "later");
+  const hour24 = data.plan[index]?.hour24;
+  if (!Number.isInteger(hour24)) return false;
+  const nextHour = (PLAN_START_HOUR + planHourSortOrder(hour24) + 1) % 24;
+  const toIndex = data.plan.findIndex((p) => p.hour24 === nextHour);
+  if (toIndex < 0) return false;
+  return movePlanItem(date, index, date, toIndex, "later");
 }
 
 function dayDiff(fromDate, toDate) {
@@ -1459,10 +1578,15 @@ function bindDayEvents(col, date) {
 
     const syncActions = () => {
       const hasText = !!input.value.trim();
+      const hour24 = data.plan[i]?.hour24;
+      const nextHour = Number.isInteger(hour24)
+        ? (PLAN_START_HOUR + planHourSortOrder(hour24) + 1) % 24
+        : null;
+      const hasNextHour = nextHour != null && data.plan.some((p) => p.hour24 === nextHour);
       row.classList.toggle("has-plan", hasText);
       defer.classList.toggle("has-plan", hasText);
       btnTomorrow.disabled = !hasText;
-      btnLater.disabled = !hasText || i >= data.plan.length - 1;
+      btnLater.disabled = !hasText || !hasNextHour;
     };
 
     check.addEventListener("change", () => {
@@ -1503,9 +1627,12 @@ function bindDayEvents(col, date) {
       },
       getText: () => input.value,
       getLabel: () => {
-        const slot = getHourSlots(data.plan.length)[i];
-        const period = slot.showPeriod ? ` ${slot.period}` : "";
-        return `PLAN · ${DAY_NAMES[date.getDay()]} ${slot.num}${period}`;
+        const hour24 = data.plan[i]?.hour24;
+        const slot = Number.isInteger(hour24) ? formatHourDisplay(hour24) : null;
+        const period = slot?.showPeriod ? ` ${slot.period}` : "";
+        return slot
+          ? `PLAN · ${DAY_NAMES[date.getDay()]} ${slot.num}${period}`
+          : `PLAN · ${DAY_NAMES[date.getDay()]}`;
       },
     });
 
