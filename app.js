@@ -7,7 +7,7 @@ const TAG_ROWS_MAX = 12;
 const HABIT_ROWS_MIN = 5;
 const HABIT_ROWS_MAX = 12;
 const PLAN_START_HOUR = 4;
-const PLAN_SLOT_COUNT = 24;
+const PLAN_SLOT_COUNT = 21;
 const PLAN_SLOT_MIN = 10;
 const PLAN_SLOT_MAX = 28;
 const LEDGER_ROWS_MIN = 3;
@@ -15,7 +15,8 @@ const LEDGER_ROWS_MAX = 10;
 const THEME_KEY = "planner-theme";
 
 const LEDGER_OPEN_KEY = "planner-ledger-open";
-const PLAN_RANGE_KEY = "planner-plan-range-24";
+const PLAN_TRIM_KEY = "planner-plan-trim-21";
+const PLAN_FIX_KEY = "planner-plan-fix-v3";
 
 function loadLedgerOpenDates() {
   try {
@@ -498,9 +499,66 @@ function migrateLegacyPlanHours(data) {
   return true;
 }
 
+function getDefaultPlanHours() {
+  return getHourSlots(PLAN_SLOT_COUNT).map((s) => s.hour24);
+}
+
+function dedupePlanByHour(data) {
+  const byHour = new Map();
+  for (const item of data.plan) {
+    const p = normalizePlanItem(item);
+    if (!Number.isInteger(p.hour24)) continue;
+    const prev = byHour.get(p.hour24);
+    if (!prev || (!prev.text.trim() && p.text.trim())) {
+      byHour.set(p.hour24, normalizePlanItem(p, p.hour24));
+    }
+  }
+  data.plan = [...byHour.values()];
+  sortPlanByHour(data);
+}
+
+function alignDayPlanToWeek(data, weekHours) {
+  dedupePlanByHour(data);
+  const byHour = new Map(data.plan.map((p) => [p.hour24, p]));
+  data.plan = weekHours.map((hour24) => {
+    const item = byHour.get(hour24);
+    return item ? normalizePlanItem(item, hour24) : emptyPlanItem(hour24);
+  });
+}
+
+function getCanonicalWeekHours(days) {
+  const orders = new Set();
+  for (let i = 0; i < PLAN_SLOT_COUNT; i += 1) orders.add(i);
+  days.forEach((date) => {
+    const data = getDayData(date);
+    dedupePlanByHour(data);
+    data.plan.forEach((p) => {
+      if (Number.isInteger(p.hour24)) orders.add(planHourSortOrder(p.hour24));
+    });
+  });
+  const maxOrder = Math.min(Math.max(...orders, PLAN_SLOT_COUNT - 1), PLAN_SLOT_MAX - 1);
+  return Array.from({ length: maxOrder + 1 }, (_, order) => (PLAN_START_HOUR + order) % 24);
+}
+
+function syncWeekPlanHours(days, persistChanges = false) {
+  const weekHours = getCanonicalWeekHours(days);
+  let changed = false;
+  days.forEach((date) => {
+    const data = getDayData(date);
+    const snapshot = JSON.stringify(data.plan.map((p) => [p.hour24, p.text, p.done]));
+    alignDayPlanToWeek(data, weekHours);
+    syncDayDo(data);
+    if (JSON.stringify(data.plan.map((p) => [p.hour24, p.text, p.done])) !== snapshot) {
+      changed = true;
+    }
+  });
+  if (changed && persistChanges) saveData();
+  return weekHours;
+}
+
 function ensurePlanHours(data) {
   if (!Array.isArray(data.plan) || !data.plan.length) {
-    data.plan = getHourSlots(PLAN_SLOT_COUNT).map((s) => emptyPlanItem(s.hour24));
+    data.plan = getDefaultPlanHours().map((hour24) => emptyPlanItem(hour24));
     return;
   }
   migrateLegacyPlanHours(data);
@@ -511,26 +569,27 @@ function ensurePlanHours(data) {
     }
     return normalized;
   });
+  dedupePlanByHour(data);
   sortPlanByHour(data);
 }
 
-function getPlanSlotViews(data) {
-  ensurePlanHours(data);
-  return data.plan
-    .map((item, planIndex) => {
-      const normalized = normalizePlanItem(item);
-      const slot = formatHourDisplay(normalized.hour24);
-      return { ...slot, planIndex, item: normalized };
-    })
-    .sort((a, b) => planHourSortOrder(a.hour24) - planHourSortOrder(b.hour24));
+function getPlanSlotViews(data, weekHours = null) {
+  if (weekHours) {
+    alignDayPlanToWeek(data, weekHours);
+  } else {
+    ensurePlanHours(data);
+  }
+  const hours = weekHours || data.plan.map((p) => p.hour24);
+  return hours.map((hour24) => {
+    const planIndex = data.plan.findIndex((p) => p.hour24 === hour24);
+    const item = normalizePlanItem(data.plan[planIndex], hour24);
+    const slot = formatHourDisplay(hour24);
+    return { ...slot, planIndex, item };
+  });
 }
 
 function getWeekPlanHours(days) {
-  const hourSet = new Set();
-  days.forEach((date) => {
-    getPlanSlotViews(getDayData(date)).forEach((view) => hourSet.add(view.hour24));
-  });
-  return [...hourSet].sort((a, b) => planHourSortOrder(a) - planHourSortOrder(b));
+  return getCanonicalWeekHours(days);
 }
 
 function getNextPlanHour(data) {
@@ -554,29 +613,27 @@ function getNextWeekPlanHour(days) {
   return null;
 }
 
-function migratePlanRangeOnce() {
-  if (localStorage.getItem(PLAN_RANGE_KEY)) return;
+function migratePlanTrimToDefault21() {
+  if (localStorage.getItem(PLAN_FIX_KEY)) return;
+  const defaultHours = getDefaultPlanHours();
+  const allowed = new Set(defaultHours);
   let changed = false;
   for (const key of Object.keys(state.data.days)) {
     const day = state.data.days[key];
     if (!Array.isArray(day.plan)) continue;
-    const existing = new Set(
-      day.plan.map((p) => normalizePlanItem(p).hour24).filter((h) => Number.isInteger(h)),
-    );
-    let dayChanged = false;
-    [1, 2, 3].forEach((hour24) => {
-      if (!existing.has(hour24)) {
-        day.plan.push(emptyPlanItem(hour24));
-        dayChanged = true;
-      }
+    dedupePlanByHour(day);
+    const byHour = new Map();
+    day.plan.forEach((p) => {
+      const h = normalizePlanItem(p).hour24;
+      if (allowed.has(h) && !byHour.has(h)) byHour.set(h, normalizePlanItem(p, h));
     });
-    if (dayChanged) {
-      sortPlanByHour(day);
-      changed = true;
-    }
+    day.plan = defaultHours.map((hour24) => byHour.get(hour24) || emptyPlanItem(hour24));
+    syncDayDo(day);
+    changed = true;
   }
   if (changed) saveData();
-  localStorage.setItem(PLAN_RANGE_KEY, "1");
+  localStorage.setItem(PLAN_FIX_KEY, "1");
+  localStorage.setItem(PLAN_TRIM_KEY, "1");
 }
 
 function syncDayDo(data) {
@@ -591,9 +648,8 @@ function syncDayDo(data) {
 
 function formatHourDisplay(hour24) {
   const num = hour24 % 12 || 12;
-  const showPeriod = hour24 === PLAN_START_HOUR || hour24 === 12 || hour24 === 0;
-  const period = hour24 === 12 ? "pm" : "am";
-  return { key: String(hour24), num, period, showPeriod, hour24 };
+  const period = hour24 < 12 ? "am" : "pm";
+  return { key: String(hour24), num, period, showPeriod: true, hour24 };
 }
 
 function oldPlanIndexForHour(hour24) {
@@ -895,14 +951,14 @@ function removePlanRowForDays(days, hour24) {
   return removed;
 }
 
-function buildPlanSyncColumnHTML(days) {
-  const weekHours = getWeekPlanHours(days);
+function buildPlanSyncColumnHTML(days, weekHours) {
   const nextHour = getNextWeekPlanHour(days);
   const nextLabel = nextHour == null ? "" : formatHourDisplay(nextHour);
   const addTitle = nextHour == null
     ? "더 이상 추가할 수 없음"
-    : `모든 요일에 ${nextLabel.num}${nextLabel.showPeriod ? ` ${nextLabel.period}` : ""} 행 추가`;
-  const canRemove = days.every((d) => getDayData(d).plan.length > PLAN_SLOT_MIN);
+    : `모든 요일에 ${nextLabel.num} ${nextLabel.period} 행 추가`;
+  const canRemove = weekHours.length > PLAN_SLOT_MIN
+    && days.every((d) => getDayData(d).plan.length > PLAN_SLOT_MIN);
   const canAdd = nextHour != null;
   const rows = weekHours.map((hour24) => `
     <div class="plan-sync-row">
@@ -910,14 +966,14 @@ function buildPlanSyncColumnHTML(days) {
     </div>`).join("");
 
   return `
-    <div class="plan-sync-head">전체</div>
-    <div class="plan-sync-label">행</div>
-    <div class="plan-sync-rows">${rows}</div>
-    <div class="plan-sync-actions">
-      <button type="button" class="plan-sync-add" ${canAdd ? "" : "disabled"} title="${addTitle}">+ 행</button>
-    </div>
-    <div class="plan-sync-ledger" aria-hidden="true"></div>
-    <div class="plan-sync-see" aria-hidden="true"></div>`;
+    <div class="plan-sync-plan">
+      <div class="plan-sync-head">전체</div>
+      <div class="plan-sync-label">행</div>
+      <div class="plan-sync-rows">${rows}</div>
+      <div class="plan-sync-actions">
+        <button type="button" class="plan-sync-add" ${canAdd ? "" : "disabled"} title="${addTitle}">+ 행</button>
+      </div>
+    </div>`;
 }
 
 function buildLedgerSectionHTML(date, ledger, options = {}) {
@@ -1072,20 +1128,21 @@ function updateLabel() {
 
 function buildWeekColumnHTML(date, options = {}) {
   const weeklySync = options.weeklySync === true;
+  const weekHours = options.weekHours || null;
   const data = getDayData(date);
   const see = normalizeSee(data.see);
   const ledger = normalizeLedger(data.ledger);
   const di = date.getDay();
-  const slotViews = getPlanSlotViews(data);
+  const slotViews = getPlanSlotViews(data, weekHours);
   const nextHour = getNextPlanHour(data);
   const canRemovePlanRow = !weeklySync && data.plan.length > PLAN_SLOT_MIN;
-  const canAddPlanRow = nextHour != null;
+  const canAddPlanRow = !weeklySync && nextHour != null;
   const headCls = ["week-col-head", di === 6 ? "sat" : "", di === 0 ? "sun" : "", isToday(date) ? "today" : ""].filter(Boolean).join(" ");
 
   const rows = slotViews.map(({ planIndex, item, num, period, showPeriod, key }) => {
     const plan = item;
     const rowCls = planRowClasses(plan);
-    const periodHtml = showPeriod ? `<span class="time-period">${period}</span>` : `<span class="time-period"></span>`;
+    const periodHtml = `<span class="time-period">${period}</span>`;
     const timeCell = plan.text.trim()
       ? `<div class="cell-time drag-handle" draggable="true" title="드래그하여 이동"><span class="time-num">${num}</span>${periodHtml}</div>`
       : `<div class="cell-time"><span class="time-num">${num}</span>${periodHtml}</div>`;
@@ -1112,24 +1169,28 @@ function buildWeekColumnHTML(date, options = {}) {
 
   return `
     <article class="week-col" data-date="${dateKey(date)}">
-      <header class="${headCls}">
-        <span class="col-head-label">${DAY_NAMES[di]} ${date.getDate()}</span>
-        <button type="button" class="col-carry-btn" data-carry-date="${dateKey(date)}" title="이 날 미완료 → 내일">→</button>
-      </header>
-      <div class="week-col-labels"><span class="lbl-spacer"></span><span class="lbl-plan">PLAN</span></div>
-      <div class="week-col-rows">${rows}</div>
-      <div class="plan-row-actions">
-        <button type="button" class="plan-row-add-btn" data-plan-date="${dateKey(date)}" ${canAddPlanRow ? "" : "disabled"} title="${canAddPlanRow && nextHour != null ? `${formatHourDisplay(nextHour).num} 행 추가` : "더 이상 추가할 수 없음"}">+ 행</button>
+      <div class="week-col-plan">
+        <header class="${headCls}">
+          <span class="col-head-label">${DAY_NAMES[di]} ${date.getDate()}</span>
+          <button type="button" class="col-carry-btn" data-carry-date="${dateKey(date)}" title="이 날 미완료 → 내일">→</button>
+        </header>
+        <div class="week-col-labels"><span class="lbl-spacer"></span><span class="lbl-plan">PLAN</span></div>
+        <div class="week-col-rows">${rows}</div>
+        ${weeklySync ? "" : `<div class="plan-row-actions">
+          <button type="button" class="plan-row-add-btn" data-plan-date="${dateKey(date)}" ${canAddPlanRow ? "" : "disabled"} title="${canAddPlanRow && nextHour != null ? `${formatHourDisplay(nextHour).num} 행 추가` : "더 이상 추가할 수 없음"}">+ 행</button>
+        </div>`}
       </div>
-      ${buildLedgerSectionHTML(date, ledger, { weeklySync })}
-      <footer class="week-col-see">
-        <span class="lbl-see">SEE</span>
-        <div class="see-fields">
-          <label class="see-field"><span class="see-num">1</span><input type="text" class="see-missed" value="${escapeAttr(see.missed.text)}" placeholder="오늘 못한 것"></label>
-          <label class="see-field"><span class="see-num">2</span><input type="text" class="see-grateful" value="${escapeAttr(see.grateful.text)}" placeholder="감사한 일"></label>
-          <label class="see-field"><span class="see-num">3</span><input type="text" class="see-summary" value="${escapeAttr(see.summary.text)}" placeholder="오늘의 하루"></label>
-        </div>
-      </footer>
+      <div class="week-col-foot">
+        ${buildLedgerSectionHTML(date, ledger, { weeklySync })}
+        <footer class="week-col-see">
+          <span class="lbl-see">SEE</span>
+          <div class="see-fields">
+            <label class="see-field"><span class="see-num">1</span><input type="text" class="see-missed" value="${escapeAttr(see.missed.text)}" placeholder="오늘 못한 것"></label>
+            <label class="see-field"><span class="see-num">2</span><input type="text" class="see-grateful" value="${escapeAttr(see.grateful.text)}" placeholder="감사한 일"></label>
+            <label class="see-field"><span class="see-num">3</span><input type="text" class="see-summary" value="${escapeAttr(see.summary.text)}" placeholder="오늘의 하루"></label>
+          </div>
+        </footer>
+      </div>
     </article>`;
 }
 
@@ -1156,10 +1217,12 @@ function renderWeekly() {
   renderDeferredPanel(weekDays);
 
   const weeklySync = !isMobileView();
+  const weekHours = syncWeekPlanHours(weekDays, true);
+
   if (els.planSyncCol) {
     if (weeklySync) {
       els.planSyncCol.hidden = false;
-      els.planSyncCol.innerHTML = buildPlanSyncColumnHTML(weekDays);
+      els.planSyncCol.innerHTML = buildPlanSyncColumnHTML(weekDays, weekHours);
       bindPlanSyncColumn(weekDays);
     } else {
       els.planSyncCol.hidden = true;
@@ -1167,7 +1230,7 @@ function renderWeekly() {
     }
   }
 
-  els.weeklyColumns.innerHTML = visibleDays.map((date) => buildWeekColumnHTML(date, { weeklySync })).join("");
+  els.weeklyColumns.innerHTML = visibleDays.map((date) => buildWeekColumnHTML(date, { weeklySync, weekHours })).join("");
 
   els.weeklyColumns.querySelectorAll(".week-col").forEach((col) => {
     bindDayEvents(col, parseDate(col.dataset.date));
@@ -2000,7 +2063,7 @@ function initTheme() {
 initTheme();
 plannerDialog.init();
 MemoStyle.init({ onPersist: persist });
-migratePlanRangeOnce();
+migratePlanTrimToDefault21();
 renderWeekly();
 
 if (els.saveStatus) {
