@@ -26,9 +26,17 @@
   const DEFAULT_STYLE = {
     pen: "ballpoint",
     weight: 2,
+    size: 6,
     color: "#222222",
     font: "default",
   };
+
+  const SIZE_MIN = 1;
+  const SIZE_MAX = 7;
+
+  function sizeToRem(size) {
+    return 0.72 + (size - 1) * 0.06;
+  }
 
   let bar = null;
   let preview = null;
@@ -57,10 +65,13 @@
     const weight = Number.isFinite(Number(s.weight))
       ? Math.min(5, Math.max(1, Math.round(Number(s.weight))))
       : DEFAULT_STYLE.weight;
+    const size = Number.isFinite(Number(s.size))
+      ? Math.min(SIZE_MAX, Math.max(SIZE_MIN, Math.round(Number(s.size))))
+      : DEFAULT_STYLE.size;
     const color = typeof s.color === "string" && /^#[0-9a-fA-F]{6}$/.test(s.color)
       ? s.color
       : DEFAULT_STYLE.color;
-    return { pen, weight, color, font };
+    return { pen, weight, size, color, font };
   }
 
   function resolveStyle(style) {
@@ -81,11 +92,9 @@
 
   function styleToCss(style) {
     const s = normalizeStyle(style);
-    const baseRem = 0.72;
-    const sizeRem = baseRem + (s.weight - 2) * 0.04;
     const css = {
       fontFamily: fontFamily(s.font),
-      fontSize: `${sizeRem}rem`,
+      fontSize: `${sizeToRem(s.size)}rem`,
     };
 
     if (s.pen === "highlighter") {
@@ -165,6 +174,11 @@
           <input type="range" id="memoWeight" min="1" max="5" step="1" value="2" aria-label="굵기">
           <output id="memoWeightOut">2</output>
         </label>
+        <label class="memo-bar-size">
+          <span class="memo-bar-mini-label">크기</span>
+          <input type="range" id="memoSize" min="1" max="7" step="1" value="6" aria-label="글씨 크기">
+          <output id="memoSizeOut">6</output>
+        </label>
         <span class="memo-bar-divider" aria-hidden="true"></span>
         <div class="memo-bar-group memo-bar-colors" id="memoColorGroup"></div>
         <label class="memo-bar-custom-color" title="커스텀 색상">
@@ -228,6 +242,9 @@
     bar.querySelector("#memoWeight").addEventListener("input", (e) => {
       setWeight(Number(e.target.value));
     });
+    bar.querySelector("#memoSize").addEventListener("input", (e) => {
+      setSize(Number(e.target.value));
+    });
     bar.querySelector("#memoCustomColor").addEventListener("input", (e) => {
       setColor(e.target.value);
     });
@@ -258,6 +275,10 @@
     const weightOut = bar.querySelector("#memoWeightOut");
     weightEl.value = String(s.weight);
     weightOut.textContent = String(s.weight);
+    const sizeEl = bar.querySelector("#memoSize");
+    const sizeOut = bar.querySelector("#memoSizeOut");
+    sizeEl.value = String(s.size);
+    sizeOut.textContent = String(s.size);
     bar.querySelector("#memoCustomColor").value = s.color;
     bar.querySelector("#memoFontSelect").value = s.font;
 
@@ -266,6 +287,7 @@
       preview.textContent = text;
       const css = styleToCss(s);
       preview.style.fontFamily = css.fontFamily;
+      preview.style.fontSize = css.fontSize;
       preview.style.color = css.color;
       preview.style.fontWeight = css.fontWeight || "";
       preview.style.textShadow = css.textShadow || "";
@@ -303,6 +325,11 @@
 
   function setWeight(weight) {
     currentStyle = { ...currentStyle, weight };
+    commitStyle();
+  }
+
+  function setSize(size) {
+    currentStyle = { ...currentStyle, size };
     commitStyle();
   }
 

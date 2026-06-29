@@ -711,7 +711,7 @@ html[data-theme="dark"] .habit-day input[type="checkbox"]:checked::after {
   border-bottom: 1px solid var(--line);
   background: transparent;
   font-family: inherit;
-  font-size: 0.72rem;
+  font-size: 0.82rem;
   padding: 2px 0;
   outline: none;
   min-width: 0;
@@ -813,7 +813,7 @@ html[data-theme="dark"] .habit-day input[type="checkbox"]:checked::after {
   border-bottom: 1px solid var(--line);
   background: transparent;
   font-family: inherit;
-  font-size: 0.72rem;
+  font-size: 0.82rem;
   padding: 2px 4px 2px 0;
   outline: none;
   min-width: 0;
@@ -1294,7 +1294,7 @@ body.weekly-plan-sync .week-col-rows {
   border-bottom: 1px solid transparent;
   background: transparent;
   font-family: inherit;
-  font-size: 0.65rem;
+  font-size: 0.82rem;
   color: var(--text);
   outline: none;
   min-width: 28px;
@@ -1574,7 +1574,7 @@ body.weekly-plan-sync .week-col-rows {
   border-bottom: 1px solid var(--line);
   background: transparent;
   font-family: inherit;
-  font-size: 0.65rem;
+  font-size: 0.82rem;
   color: var(--text);
   padding: 3px 0;
   outline: none;
@@ -1730,7 +1730,8 @@ body.weekly-plan-sync .week-col-rows {
   font-size: 0.6rem;
 }
 
-.memo-bar-weight {
+.memo-bar-weight,
+.memo-bar-size {
   display: inline-flex;
   align-items: center;
   gap: 6px;
@@ -1739,12 +1740,14 @@ body.weekly-plan-sync .week-col-rows {
   flex-shrink: 0;
 }
 
-.memo-bar-weight input[type="range"] {
+.memo-bar-weight input[type="range"],
+.memo-bar-size input[type="range"] {
   width: 72px;
   accent-color: var(--accent);
 }
 
-.memo-bar-weight output {
+.memo-bar-weight output,
+.memo-bar-size output {
   min-width: 10px;
   font-weight: 600;
   color: var(--text);
@@ -1902,7 +1905,7 @@ body.weekly-plan-sync .week-col-rows {
   :root { --row-h: 28px; --time-w: 32px; }
 
   .plan-input {
-    font-size: 0.78rem;
+    font-size: 0.82rem;
   }
 
   .plan-defer.has-plan {
@@ -1981,12 +1984,14 @@ body.weekly-plan-sync .week-col-rows {
   }
 
   .memo-bar-font-wrap,
-  .memo-bar-weight {
+  .memo-bar-weight,
+  .memo-bar-size {
     width: 100%;
     justify-content: space-between;
   }
 
-  .memo-bar-weight input[type="range"] {
+  .memo-bar-weight input[type="range"],
+  .memo-bar-size input[type="range"] {
     flex: 1;
   }
 
