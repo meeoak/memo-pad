@@ -1037,6 +1037,14 @@ function bindPlanSyncColumn(days) {
   });
 }
 
+function findPlanByHour(date, hour24) {
+  return getDayData(date).plan.find((p) => p.hour24 === hour24);
+}
+
+function findPlanIndexByHour(date, hour24) {
+  return getDayData(date).plan.findIndex((p) => p.hour24 === hour24);
+}
+
 function getDayData(date) {
   const key = dateKey(date);
   if (!state.data.days[key]) state.data.days[key] = emptyDayData();
@@ -1675,7 +1683,9 @@ function bindDayEvents(col, date) {
   bindLedgerEvents(col, date);
 
   col.querySelectorAll(".week-hour-row").forEach((row) => {
-    const i = Number(row.dataset.index);
+    const hour24 = Number(row.dataset.hour);
+    const planItem = () => findPlanByHour(date, hour24);
+    const planIndex = () => findPlanIndexByHour(date, hour24);
     const check = row.querySelector(".plan-check");
     const input = row.querySelector(".plan-input");
     const defer = row.querySelector(".plan-defer");
@@ -1684,11 +1694,11 @@ function bindDayEvents(col, date) {
 
     const syncActions = () => {
       const hasText = !!input.value.trim();
-      const hour24 = data.plan[i]?.hour24;
       const nextHour = Number.isInteger(hour24)
         ? (PLAN_START_HOUR + planHourSortOrder(hour24) + 1) % 24
         : null;
-      const hasNextHour = nextHour != null && data.plan.some((p) => p.hour24 === nextHour);
+      const dayData = getDayData(date);
+      const hasNextHour = nextHour != null && dayData.plan.some((p) => p.hour24 === nextHour);
       row.classList.toggle("has-plan", hasText);
       defer.classList.toggle("has-plan", hasText);
       btnTomorrow.disabled = !hasText;
@@ -1696,44 +1706,47 @@ function bindDayEvents(col, date) {
     };
 
     check.addEventListener("change", () => {
-      if (!input.value.trim()) {
+      const item = planItem();
+      if (!item || !input.value.trim()) {
         check.checked = false;
         return;
       }
-      data.plan[i].done = check.checked;
-      if (data.plan[i].done) {
-        data.plan[i].defer = null;
-        data.plan[i].deferFrom = null;
+      item.done = check.checked;
+      if (item.done) {
+        item.defer = null;
+        item.deferFrom = null;
       }
-      syncPlanRowClasses(row, data.plan[i]);
+      syncPlanRowClasses(row, item);
       persist();
       updateWeekProgress();
       renderDeferredPanel(getWeekDays(state.currentDate));
     });
 
     input.addEventListener("input", () => {
-      data.plan[i].text = input.value;
+      const item = planItem();
+      if (!item) return;
+      item.text = input.value;
       if (!input.value.trim()) {
-        data.plan[i].done = false;
-        data.plan[i].defer = null;
-        data.plan[i].deferFrom = null;
-        data.plan[i].highlight = false;
+        item.done = false;
+        item.defer = null;
+        item.deferFrom = null;
+        item.highlight = false;
         check.checked = false;
       }
-      syncPlanRowClasses(row, data.plan[i]);
+      syncPlanRowClasses(row, item);
       syncActions();
       persist();
       renderDeferredPanel(getWeekDays(state.currentDate));
     });
 
     bindMemoStyle(input, {
-      getStyle: () => getDayData(date).plan[i].style,
+      getStyle: () => planItem()?.style ?? null,
       setStyle: (style) => {
-        getDayData(date).plan[i].style = style;
+        const item = planItem();
+        if (item) item.style = style;
       },
       getText: () => input.value,
       getLabel: () => {
-        const hour24 = data.plan[i]?.hour24;
         const slot = Number.isInteger(hour24) ? formatHourDisplay(hour24) : null;
         const period = slot?.showPeriod ? ` ${slot.period}` : "";
         return slot
@@ -1743,9 +1756,10 @@ function bindDayEvents(col, date) {
     });
 
     input.addEventListener("dblclick", () => {
-      if (data.plan[i].done || data.plan[i].defer) return;
-      data.plan[i].highlight = !data.plan[i].highlight;
-      syncPlanRowClasses(row, data.plan[i]);
+      const item = planItem();
+      if (!item || item.done || item.defer) return;
+      item.highlight = !item.highlight;
+      syncPlanRowClasses(row, item);
       persist();
     });
 
@@ -1763,21 +1777,25 @@ function bindDayEvents(col, date) {
         return;
       }
       if (!input.value.trim()) return;
+      const idx = planIndex();
+      if (idx < 0) return;
       if (e.key === "ArrowRight" && e.altKey) {
         e.preventDefault();
-        if (deferPlanToTomorrow(date, i)) renderWeekly();
+        if (deferPlanToTomorrow(date, idx)) renderWeekly();
       } else if (e.key === "ArrowDown" && e.altKey) {
         e.preventDefault();
-        if (deferPlanToday(date, i)) renderWeekly();
+        if (deferPlanToday(date, idx)) renderWeekly();
       }
     });
 
     btnTomorrow.addEventListener("click", () => {
-      if (deferPlanToTomorrow(date, i)) renderWeekly();
+      const idx = planIndex();
+      if (idx >= 0 && deferPlanToTomorrow(date, idx)) renderWeekly();
     });
 
     btnLater.addEventListener("click", () => {
-      if (deferPlanToday(date, i)) renderWeekly();
+      const idx = planIndex();
+      if (idx >= 0 && deferPlanToday(date, idx)) renderWeekly();
     });
 
     syncActions();

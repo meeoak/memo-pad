@@ -327,8 +327,12 @@
 
   function activateBinding(binding) {
     activeBinding = binding;
-    currentStyle = resolveStyle(binding.getStyle?.());
+    const saved = binding.getStyle?.() ?? null;
+    currentStyle = resolveStyle(saved);
     setActiveInput(binding.input);
+    if (binding.input) {
+      applyStyleToInput(binding.input, saved ?? currentStyle);
+    }
     syncBarUi();
   }
 
@@ -340,7 +344,6 @@
     input.parentNode.insertBefore(wrap, input);
     wrap.appendChild(input);
     input.classList.add("memo-input");
-    applyStyleToInput(input, binding.getStyle?.());
 
     const fullBinding = {
       ...binding,
@@ -348,9 +351,11 @@
       getLabel: binding.getLabel || (() => input.placeholder || "메모"),
     };
 
+    const saved = binding.getStyle?.() ?? null;
+    applyStyleToInput(input, saved ?? loadPref());
+
     input.addEventListener("focus", () => {
       activateBinding(fullBinding);
-      applyStyleToInput(input, binding.getStyle?.());
     });
 
     return wrap;
