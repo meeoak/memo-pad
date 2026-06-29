@@ -45,6 +45,7 @@
   let activeInput = null;
   let currentStyle = { ...DEFAULT_STYLE };
   let onPersist = null;
+  let onClearWeek = null;
 
   function loadPref() {
     try {
@@ -191,6 +192,7 @@
         </label>
         <span class="memo-bar-preview" id="memoStylePreview">미리보기</span>
         <button type="button" class="memo-clear-btn" id="memoClearStyle" title="선택한 메모의 꾸미기를 기본으로 되돌립니다">스타일 지우기</button>
+        <button type="button" class="memo-clear-btn memo-clear-week-btn" id="memoClearWeekStyle" title="이번 주 모든 메모의 꾸미기를 지웁니다">금주 스타일 지우기</button>
       </div>
       <button type="button" class="memo-bar-toggle" id="memoBarToggle" aria-expanded="false">꾸미기</button>`;
 
@@ -256,6 +258,7 @@
     });
 
     bar.querySelector("#memoClearStyle").addEventListener("click", clearStyle);
+    bar.querySelector("#memoClearWeekStyle").addEventListener("click", clearWeekStyles);
 
     currentStyle = loadPref();
     syncBarUi();
@@ -352,6 +355,23 @@
     syncBarUi();
   }
 
+  function clearWeekStyles() {
+    if (!onClearWeek) return;
+    const ok = confirm(
+      "이번 주 WORK·LIFE·습관·PLAN·SEE 메모의 꾸미기(색·서체·굵기·크기)를 모두 지울까요?\n내용은 그대로 둡니다."
+    );
+    if (!ok) return;
+    onClearWeek();
+    deactivate();
+  }
+
+  function deactivate() {
+    activeBinding = null;
+    setActiveInput(null);
+    currentStyle = loadPref();
+    syncBarUi();
+  }
+
   function activateBinding(binding) {
     activeBinding = binding;
     const saved = binding.getStyle?.() ?? null;
@@ -390,11 +410,13 @@
 
   function init(options = {}) {
     onPersist = options.onPersist || null;
+    onClearWeek = options.onClearWeek || null;
     buildBar();
   }
 
   window.MemoStyle = {
     init,
+    deactivate,
     normalizeStyle,
     resolveStyle,
     applyStyleToInput,

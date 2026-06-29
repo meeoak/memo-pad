@@ -1845,6 +1845,10 @@ body.weekly-plan-sync .week-col-rows {
   cursor: default;
 }
 
+.memo-clear-week-btn {
+  color: var(--text);
+}
+
 .memo-styled:focus {
   outline: none;
 }

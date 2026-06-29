@@ -2074,6 +2074,24 @@ function applyTheme(theme) {
   if (els.themeSelect) els.themeSelect.value = theme;
 }
 
+function clearCurrentWeekStyles() {
+  const week = getWeekData(state.currentDate);
+  for (const item of week.work) item.style = null;
+  for (const item of week.life) item.style = null;
+  for (const habit of week.habits) habit.style = null;
+
+  for (const date of getWeekDays(state.currentDate)) {
+    const day = getDayData(date);
+    for (const plan of day.plan) plan.style = null;
+    for (const field of ["missed", "grateful", "summary"]) {
+      day.see[field].style = null;
+    }
+  }
+
+  saveData();
+  renderWeekly();
+}
+
 function initTheme() {
   const theme = localStorage.getItem(THEME_KEY) || "minimal";
   applyTheme(theme);
@@ -2082,7 +2100,7 @@ function initTheme() {
 
 initTheme();
 plannerDialog.init();
-MemoStyle.init({ onPersist: persist });
+MemoStyle.init({ onPersist: persist, onClearWeek: clearCurrentWeekStyles });
 migratePlanTrimToDefault21();
 renderWeekly();
 
